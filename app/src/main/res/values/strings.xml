@@ -656,6 +656,8 @@
 
     <string name="mkChk1">Filter</string>
     <string name="mkChk2">Apply to directory</string>
+    <string name="mkChk3">Files only</string>
+    <string name="mkChk4">Folders only</string>
     <string name="ope100">Set as thumbnail of parent directory</string>
     <string name="ope101">Crop first page and set to thumbnail</string>
     <string name="cMargin">Center Margin</string>

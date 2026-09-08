@@ -656,6 +656,8 @@
 
     <string name="mkChk1">フィルタ</string>
     <string name="mkChk2">ディレクトリにも適用する</string>
+    <string name="mkChk3">ファイルのみ表示</string>
+    <string name="mkChk4">フォルダのみ表示</string>
     <string name="ope100">親ディレクトリのサムネイルに設定</string>
     <string name="ope101">範囲選択してサムネイルに設定</string>
     <string name="cMargin">中央に余白を表示</string>

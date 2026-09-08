@@ -340,6 +340,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private String mMarker;
 	private boolean mFilter;
 	private boolean mApplyDir;
+	private boolean mFileOnly;
+	private boolean mFolderOnly;
 	private boolean mSkipGetThumbnail;
 	private int mTabSize;
 
@@ -3729,19 +3731,19 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			}
 			case DEF.MESSAGE_MARKER: {
 
-				mMarkerInputDialog = new MarkerInputDialog(mActivity, R.style.MyDialog, mMarker, mFilter, mApplyDir, new MarkerInputDialog.SearchListener() {
+				mMarkerInputDialog = new MarkerInputDialog(mActivity, R.style.MyDialog, mMarker, mFilter, mApplyDir, mFileOnly, mFolderOnly, new MarkerInputDialog.SearchListener() {
 					@Override
-					public void onSearch(String text, boolean filter, boolean applyDir) {
+					public void onSearch(String text, boolean filter, boolean applyDir, boolean fileOnly, boolean folderOnly) {
 						if (text.isEmpty()) {
 							Toast.makeText(mActivity, R.string.searchJumpNoText, Toast.LENGTH_SHORT).show();
 						}
-						updateMarker(text, filter, applyDir);
+						updateMarker(text, filter, applyDir, fileOnly, folderOnly);
 					}
 
 					@Override
 					public void onCancel() {
 						// 検索文字列クリア
-						updateMarker("", mFilter, mApplyDir);
+						updateMarker("", mFilter, mApplyDir, mFileOnly, mFolderOnly);
 					}
 
 					@Override
@@ -4345,7 +4347,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 		// ファイルリスト取得条件セット
 		mFileList.setPath(mURI, mPath, user, pass);
-		mFileList.setParams(mHidden, mMarker, mFilter, mApplyDir, mParentMove, mEpubViewer, mEpubWebView, mAozoraZipFile, mAozoraTextFile);
+		mFileList.setParams(mHidden, mMarker, mFilter, mApplyDir, mFileOnly, mFolderOnly, mParentMove, mEpubViewer, mEpubWebView, mAozoraZipFile, mAozoraTextFile);
 
 		if (mListScreenView != null) {
 			mListScreenView.mFileListArea.setThumbnailId(0);
@@ -4733,31 +4735,36 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	/**
 	 * マーカーの更新
 	 */
-	private void updateMarker(String text, boolean filter, boolean applyDir) {
+	private void updateMarker(String text, boolean filter, boolean applyDir, boolean fileOnly, boolean folderOnly) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します.");
-		Logcat.v(logLevel, "mMarker=" + mMarker +", mFilter=" + mFilter + ", mApplyDir=" + mApplyDir);
-		Logcat.v(logLevel, "text=" + text +", filter=" + filter + ", applyDir=" + applyDir);
+		Logcat.v(logLevel, "mMarker=" + mMarker +", mFilter=" + mFilter + ", mApplyDir=" + mApplyDir + ", mFileOnly=" + mFileOnly + ", mFolderOnly=" + mFolderOnly);
+		Logcat.v(logLevel, "text=" + text +", filter=" + filter + ", applyDir=" + applyDir + ", fileOnly=" + fileOnly + ", folderOnly=" + folderOnly);
 
 
 		String prev_marker = mMarker;
 		boolean prev_filter = mFilter;
 		boolean prev_applyDir = mApplyDir;
+		boolean prev_fileOnly = mFileOnly;
+		boolean prev_folderOnly = mFolderOnly;
 
 		mMarker = text;
 		mFilter = filter;
 		mApplyDir = applyDir;
+		mFileOnly = fileOnly;
+		mFolderOnly = folderOnly;
 
-		if (mMarker.equals(prev_marker) && mFilter == prev_filter && mApplyDir == prev_applyDir) {
+		if (mMarker.equals(prev_marker) && mFilter == prev_filter && mApplyDir == prev_applyDir
+				&& mFileOnly == prev_fileOnly && mFolderOnly == prev_folderOnly) {
 			// すべて一致する場合は更新しない
 			Logcat.v(logLevel, "マーカーがすべて一致.");
 
 		}
-		else if (mMarker.isEmpty() && prev_marker.isEmpty()) {
+		else if (mMarker.isEmpty() && prev_marker.isEmpty() && mFileOnly == prev_fileOnly && mFolderOnly == prev_folderOnly) {
 			// 空文字から空文字の場合は更新しない
 			Logcat.v(logLevel, "空文字から空文字.");
 		}
-		else if (!mFilter && !prev_filter) {
+		else if (!mFilter && !prev_filter && mFileOnly == prev_fileOnly && mFolderOnly == prev_folderOnly) {
 			//　フィルタなしからフィルタなしの場合はサムネイルを更新しない
 			Logcat.v(logLevel, "フィルタなしからフィルタなし.");
 			updateListView();

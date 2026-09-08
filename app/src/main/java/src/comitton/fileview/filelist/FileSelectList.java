@@ -65,6 +65,8 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 	private boolean mHidden;
 	private boolean mFilter;
 	private boolean mApplyDir;
+	private boolean mFileOnly;
+	private boolean mFolderOnly;
 	private String mMarker;
 	private boolean mEpubViewer;
 	private static boolean mKeepSortShuffle;
@@ -310,11 +312,13 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 	}
 
 	// リストモード
-	public void setParams(boolean hidden, String marker, boolean filter, boolean applydir, boolean parentmove, boolean epubViewer, boolean epubWebViewer, boolean aozorazipfile, boolean aozoratextfile) {
+	public void setParams(boolean hidden, String marker, boolean filter, boolean applydir, boolean fileOnly, boolean folderOnly, boolean parentmove, boolean epubViewer, boolean epubWebViewer, boolean aozorazipfile, boolean aozoratextfile) {
 		mHidden = hidden;
 		mMarker = marker;
 		mFilter = filter;
 		mApplyDir = applydir;
+		mFileOnly = fileOnly;
+		mFolderOnly = folderOnly;
 		mParentMove = parentmove;
 		mEpubViewer = epubViewer;
 		mEpubWebView = epubWebViewer;
@@ -979,12 +983,23 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 					fileList.remove(i);
 					continue;
 				}
-				if (fileList.get(i).getType() != FileData.FILETYPE_DIR && fileList.get(i).getType() != FileData.FILETYPE_PARENT) {
+				boolean isDirEntry = (fileList.get(i).getType() == FileData.FILETYPE_DIR || fileList.get(i).getType() == FileData.FILETYPE_PARENT);
+				if (!isDirEntry) {
 					// 通常のファイル
 					if (hidden && DEF.checkHiddenFile(name)) {
 						fileList.remove(i);
 						continue;
 					}
+				}
+
+				// ファイルのみ/フォルダのみ表示(マーカー文字列の有無に関わらず適用する)
+				if (mFileOnly && isDirEntry) {
+					fileList.remove(i);
+					continue;
+				}
+				if (mFolderOnly && !isDirEntry) {
+					fileList.remove(i);
+					continue;
 				}
 
 				hit = false;
