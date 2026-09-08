@@ -61,48 +61,64 @@ public class ReadPositionSyncClient {
      * 未設定・未登録・通信失敗の場合はnullを返す。呼び出し側はローカルの値を使い続けること。
      * 短いタイムアウトを設定しているが、呼び出し元スレッドをその時間だけブロックする点に注意
      * (ファイルを開く前に同期してから開く、という仕様上の意図的な挙動)。
+     * Androidではメインスレッドから直接ネットワークアクセスするとNetworkOnMainThreadExceptionが
+     * 発生するため、内部でバックグラウンドスレッドを起動してjoin()で待ち合わせる。
      */
-    public static Position getRemotePosition(SharedPreferences sp, String host, String path, String file) {
+    public static Position getRemotePosition(final SharedPreferences sp, final String host, final String path, final String file) {
         if (host == null || host.isEmpty() || file == null || file.isEmpty() || !isConfigured(sp)) {
             return null;
         }
-        int logLevel = Logcat.LOG_LEVEL_WARN;
-        String normalizedFile = DEF.stripArchiveExt(file);
-        HttpURLConnection conn = null;
-        try {
-            String url = baseUrl(sp)
-                    + "?host=" + URLEncoder.encode(host, "UTF-8")
-                    + "&path=" + URLEncoder.encode(path == null ? "" : path, "UTF-8")
-                    + "&file=" + URLEncoder.encode(normalizedFile, "UTF-8");
-            conn = (HttpURLConnection) new URL(url).openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(GET_CONNECT_TIMEOUT_MS);
-            conn.setReadTimeout(GET_READ_TIMEOUT_MS);
-            applyAuth(conn, sp);
+        final int logLevel = Logcat.LOG_LEVEL_WARN;
+        final Position[] result = new Position[1];
+        Thread thread = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                String normalizedFile = DEF.stripArchiveExt(file);
+                HttpURLConnection conn = null;
+                try {
+                    String url = baseUrl(sp)
+                            + "?host=" + URLEncoder.encode(host, "UTF-8")
+                            + "&path=" + URLEncoder.encode(path == null ? "" : path, "UTF-8")
+                            + "&file=" + URLEncoder.encode(normalizedFile, "UTF-8");
+                    conn = (HttpURLConnection) new URL(url).openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(GET_CONNECT_TIMEOUT_MS);
+                    conn.setReadTimeout(GET_READ_TIMEOUT_MS);
+                    applyAuth(conn, sp);
 
-            int responseCode = conn.getResponseCode();
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                // 404(未登録)を含む。エラーではなく単に情報が無いだけ
-                return null;
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode != HttpURLConnection.HTTP_OK) {
+                        // 404(未登録)を含む。エラーではなく単に情報が無いだけ
+                        return;
+                    }
+                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        response.append(line);
+                    }
+                    in.close();
+                    result[0] = new Gson().fromJson(response.toString(), Position.class);
+                }
+                catch (Exception e) {
+                    Logcat.e(logLevel, "ReadPositionSync get error", e);
+                }
+                finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
+                }
             }
-            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
-            StringBuilder response = new StringBuilder();
-            String line;
-            while ((line = in.readLine()) != null) {
-                response.append(line);
-            }
-            in.close();
-            return new Gson().fromJson(response.toString(), Position.class);
+        });
+        thread.start();
+        try {
+            // 接続+読み込みタイムアウトの合計時間より少し余裕を持たせて待つ
+            thread.join(GET_CONNECT_TIMEOUT_MS + GET_READ_TIMEOUT_MS + 500);
         }
-        catch (Exception e) {
-            Logcat.e(logLevel, "ReadPositionSync get error", e);
-            return null;
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
-        finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
+        return result[0];
     }
 
     /**
