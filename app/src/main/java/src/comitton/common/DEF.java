@@ -4610,6 +4610,10 @@ public class DEF {
 			int len = key.length();
 			if (len >= 1 && key.startsWith("/")) {
 			} else if (len >= 6 && key.startsWith("smb://")) {
+				// SMB上のファイルの既読位置キャッシュ(createUrlの出力)。
+				// 既読位置サーバー同期(ReadPositionSyncClient)導入により、
+				// SMB上のファイルの既読位置はサーバー側が正となるため、端末間で持ち回る設定には含めない。
+				return false;
 			} else {
 				return false;
 			}
