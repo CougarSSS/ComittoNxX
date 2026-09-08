@@ -12,6 +12,8 @@ import src.comitton.config.SetEpubActivity;
 import src.comitton.config.SetHardwareTextViewerKeyActivity;
 import src.comitton.dialog.ToolbarDialog;
 import src.comitton.fileaccess.FileAccess;
+import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.helpview.HelpActivity;
 import src.comitton.common.DEF;
 import src.comitton.config.SetCommonActivity;
@@ -3913,8 +3915,26 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		// ブックマーク追加
 		int type = (mFileName == null || mFileName.isEmpty()) ? RecordItem.TYPE_TEXT : RecordItem.TYPE_COMPTEXT;
 		mCurrentPageRate = (float)mCurrentPage / mTextMgr.length();
+		long bookmarkDate = new Date().getTime();
 		RecordList.add(RecordList.TYPE_BOOKMARK, type, mServer, mLocalFileName
-				, mTextName, new Date().getTime(), null, 0, mCurrentPageRate, mCurrentPage, name);
+				, mTextName, bookmarkDate, null, 0, mCurrentPageRate, mCurrentPage, name);
+
+		// SMBサーバー上のファイルであれば、複数端末で共有できるよう栞をサーバーへも同期する
+		if (mServer != DEF.INDEX_LOCAL) {
+			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
+			RecordItem syncItem = new RecordItem();
+			syncItem.setType(type);
+			syncItem.setServer(mServer);
+			syncItem.setPath(mLocalFileName);
+			syncItem.setFile(mTextName);
+			syncItem.setDate(bookmarkDate);
+			syncItem.setImage("");
+			syncItem.setChapter(0);
+			syncItem.setPageRate(mCurrentPageRate);
+			syncItem.setPage(mCurrentPage);
+			syncItem.setDispName(name);
+			BookmarkSyncClient.pushUpsert(mActivity, syncItem, host, mSharedPreferences);
+		}
 	}
 
 	private void showCloseDialog(int layout) {

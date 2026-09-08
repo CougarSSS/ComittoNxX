@@ -134,6 +134,12 @@
     <string name="ZoomReset">ズームリセット</string>
 
     <string name="downloadCountMenu">ダウンロード数</string>
+    <string name="everythingSearchMenu">Everything検索</string>
+    <string name="everythingSearchTitle">Everythingで検索</string>
+    <string name="everythingSearchHint">検索キーワードを入力してください</string>
+    <string name="everythingSearchNoServer">該当するホストのSMBサーバーが登録されていません。先にサーバー一覧に追加してください。</string>
+    <string name="everythingSearchNoResult">検索結果がありませんでした。</string>
+    <string name="everythingSearchPrompt">タップしてEverythingで検索</string>
     <string name="licenseMenu">ライセンス情報</string>
     <string name="noiseMenu">音での操作</string>
     <string name="HorizontalWriting">横書き表示に変更</string>
@@ -558,6 +564,7 @@
     <string name="listname03">ブックマーク</string>
     <string name="listname04">履歴</string>
     <string name="listname05">メニュー</string>
+    <string name="listname06">検索</string>
     <string name="maxthread00">自動</string>
     <string name="maxthread01">1 スレッド</string>
     <string name="maxthread02">2 スレッド</string>

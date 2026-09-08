@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+    <PreferenceCategory android:title="Setting for Bookmark Sync" >
+       <EditTextPreference
+            android:key="BookmarkSyncHost"
+            android:title="Host IP Address"
+            android:summary="Bookmark Sync Server IP Address"
+            android:dialogTitle="Host IP Address" />
+       <EditTextPreference
+            android:key="BookmarkSyncPort"
+            android:defaultValue="8081"
+            android:title="Port Number"
+            android:summary="Bookmark Sync Server Port Number"
+            android:dialogTitle="Port Number" />
+       <EditTextPreference
+            android:key="BookmarkSyncUser"
+            android:title="Username"
+            android:summary="Username for HTTP Auth (optional)"
+            android:dialogTitle="Username" />
+       <EditTextPreference
+            android:key="BookmarkSyncPass"
+            android:title="Password"
+            android:password="true"
+            android:summary="Password for HTTP Auth (optional)"
+            android:dialogTitle="Password" />
+    </PreferenceCategory>
+</PreferenceScreen>

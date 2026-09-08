@@ -134,6 +134,12 @@
     <string name="ZoomLevelUndo">undo</string>
     <string name="ZoomReset">Zoom reset</string>
     <string name="downloadCountMenu">Number of Downloads</string>
+    <string name="everythingSearchMenu">Everything Search</string>
+    <string name="everythingSearchTitle">Search with Everything</string>
+    <string name="everythingSearchHint">Enter search keyword</string>
+    <string name="everythingSearchNoServer">No matching SMB server is registered for this host. Add it in the server list first.</string>
+    <string name="everythingSearchNoResult">No results found.</string>
+    <string name="everythingSearchPrompt">Tap to search with Everything</string>
     <string name="licenseMenu">License</string>
     <string name="noiseMenu">Operation by noise</string>
     <string name="HorizontalWriting">Change to horizontal display</string>
@@ -558,6 +564,7 @@
     <string name="listname03">Favorite</string>
     <string name="listname04">History</string>
     <string name="listname05">Menu</string>
+    <string name="listname06">Search</string>
     <string name="maxthread00">Auto</string>
     <string name="maxthread01">1 therad</string>
     <string name="maxthread02">2 threads</string>

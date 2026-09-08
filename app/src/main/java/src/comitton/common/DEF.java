@@ -944,6 +944,24 @@ public class DEF {
 
 	public static final String KEY_CANCELFILELISTDIALOG = "CancelFileListDialog";
 
+	public static final String KEY_EVERYTHING_HOST = "EverythingHost";
+	public static final String KEY_EVERYTHING_PORT = "EverythingPort";
+	public static final String KEY_EVERYTHING_USER = "EverythingUser";
+	public static final String KEY_EVERYTHING_PASS = "EverythingPass";
+	public static final String KEY_EVERYTHING_REPLACE_FROM = "EverythingReplaceFrom";
+	public static final String KEY_EVERYTHING_REPLACE_TO = "EverythingReplaceTo";
+
+	public static final int HMSG_EVERYTHING_RESULT = 33;
+	public static final int TOOLBAR_EVERYTHING = 1041;
+	public static final int TOOLBAR_EVENT_EVERYTHING = 38;
+
+	public static final String KEY_BOOKMARKSYNC_HOST = "BookmarkSyncHost";
+	public static final String KEY_BOOKMARKSYNC_PORT = "BookmarkSyncPort";
+	public static final String KEY_BOOKMARKSYNC_USER = "BookmarkSyncUser";
+	public static final String KEY_BOOKMARKSYNC_PASS = "BookmarkSyncPass";
+
+	public static final int HMSG_BOOKMARKSYNC_RESULT = 34;
+
 	public static final String KEY_FLOATINGICONSIZE = "FloatingIconSize";
 	public static final String KEY_FLOATINGICONDIRECTIONMODE = "FloatingIconDirectionMode";
 	public static final String KEY_FLOATINGICONHORIZENTIAL = "FloatingIconHoraizential";
@@ -4700,6 +4718,111 @@ public class DEF {
 		}
 		ret += "@" + url.substring(6);
 		return ret;
+	}
+
+	/**
+	 * アーカイブ系拡張子(FileData.isArchive()が対象とする zip/rar/cbz/cbr等)のみを除去したベース名を返す。
+	 * txt/pdf/epub等の非アーカイブ形式は対象外(別コンテンツとして扱う)。
+	 * 例: "作品A.zip" と "作品A.rar" は同じ "作品A" になる。
+	 */
+	public static String stripArchiveExt(String filename) {
+		if (filename == null || filename.isEmpty()) {
+			return "";
+		}
+		if (!FileData.isArchive(filename)) {
+			return filename;
+		}
+		int idx = filename.lastIndexOf('.');
+		return idx > 0 ? filename.substring(0, idx) : filename;
+	}
+
+	// url(またはSharedPreferencesのキー)からファイル名部分だけを取り出す
+	private static String fileNameOfUrl(String url) {
+		if (url == null) {
+			return "";
+		}
+		String s = url;
+		if (s.endsWith("/")) {
+			s = s.substring(0, s.length() - 1);
+		}
+		int idx = s.lastIndexOf('/');
+		return idx >= 0 ? s.substring(idx + 1) : s;
+	}
+
+	// url(またはSharedPreferencesのキー)からサーバー(ホスト)部分までを取り出す。
+	// ローカルパス等スキームを持たない場合は絞り込みなし("")を返す。
+	private static String rootOfUrl(String url) {
+		if (url == null) {
+			return "";
+		}
+		int schemeIdx = url.indexOf("://");
+		if (schemeIdx < 0) {
+			return "";
+		}
+		int hostStart = schemeIdx + 3;
+		int hostEnd = url.indexOf('/', hostStart);
+		return hostEnd >= 0 ? url.substring(0, hostEnd + 1) : url + "/";
+	}
+
+	/**
+	 * 既読位置(SharedPreferences)を引くべきキーを解決する。まず完全一致(createUrlで作られる
+	 * 正確なキー)を試し、見つからなければ同一サーバー内でファイル名(アーカイブ拡張子は無視)が
+	 * 一致する直近のレコードのキーにフォールバックする。
+	 * これにより、ZIP<->RARの拡張子違いやディレクトリ移動後でも既読位置・既読/未読状態
+	 * ("キー"+"#maxpage"、"キー"+"#date"を含む)を一貫して引き継げる。
+	 * 書き込み側は変更しない(常に正確なキー=createUrl(url,user,pass)で保存される)ため、
+	 * データ移行は不要。フォールバックが見つからない場合は正確なキー(exactKey)をそのまま返す
+	 * (=既存動作どおり未読扱いになる)。
+	 */
+	public static String resolvePageKey(SharedPreferences prefs, String url, String user, String pass) {
+		String exactKey = createUrl(url, user, pass);
+		if (prefs.contains(exactKey)) {
+			return exactKey;
+		}
+
+		String targetName = fileNameOfUrl(url);
+		if (targetName.isEmpty()) {
+			return exactKey;
+		}
+		String targetBase = stripArchiveExt(targetName);
+		String targetRoot = rootOfUrl(exactKey);
+
+		java.util.Map<String, ?> all = prefs.getAll();
+		String bestKey = null;
+		int bestDate = -1;
+		for (String key : all.keySet()) {
+			if (key.endsWith("#maxpage") || key.endsWith("#date")) {
+				// 付随データのキーは対象外
+				continue;
+			}
+			if (!key.startsWith(targetRoot)) {
+				// 別サーバーは対象外
+				continue;
+			}
+			Object val = all.get(key);
+			if (!(val instanceof Integer)) {
+				continue;
+			}
+			String candidateBase = stripArchiveExt(fileNameOfUrl(key));
+			if (!candidateBase.equals(targetBase)) {
+				continue;
+			}
+			Object dateObj = all.get(key + "#date");
+			int date = (dateObj instanceof Integer) ? (Integer) dateObj : 0;
+			if (bestKey == null || date > bestDate) {
+				bestKey = key;
+				bestDate = date;
+			}
+		}
+		return bestKey != null ? bestKey : exactKey;
+	}
+
+	/**
+	 * 既読ページ位置を取得する({@link #resolvePageKey}のフォールバック込み)。
+	 * "#maxpage"/"#date"のような付随データを伴わない単純な参照(ビューア起動時の再開ページ等)向け。
+	 */
+	public static int getPageWithFallback(SharedPreferences prefs, String url, String user, String pass) {
+		return prefs.getInt(resolvePageKey(prefs, url, user, pass), PAGENUMBER_UNREAD);
 	}
 
 

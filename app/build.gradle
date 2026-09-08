@@ -13,11 +13,11 @@ def versionPatch = 10
 def revision = "CH"
 
 // アプリに署名するため以下のファイルを作成して signingConfig の設定を記述してください
-apply from:'../signingConfigs/release.gradle', to: android
+// apply from:'../signingConfigs/release.gradle', to: android
 android {
 
     namespace packageName
-    compileSdk 37 // Android 17("CinnamonBun")
+    compileSdk 35 // Android 17("CinnamonBun")
 
     // 28にすると -lpthread が勝手に追加されてビルドできない時がある
     // C言語の書式バージョン問題でビルドエラーが発生する場合はndkバージョンを24まで下げること
@@ -29,7 +29,7 @@ android {
 
     defaultConfig {
         applicationId packageName
-        targetSdk 37 // Android 17("CinnamonBun")
+        targetSdk 35 // Android 17("CinnamonBun")
         minSdk 24 // Android 7.0("Nougat")
 
         versionCode versionMajor * 10000 + versionMinor * 100 + versionPatch
@@ -54,7 +54,12 @@ android {
             }
         }
 
-        signingConfig signingConfigs.release
+        // signingConfig signingConfigs.release
+    }
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/versions/9/OSGI-INF/MANIFEST.MF']
+        }
     }
     applicationVariants.all { variant ->
         variant.resValue 'string', 'application_id', variant.applicationId
@@ -85,7 +90,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // signingConfig signingConfigs.release
         }
         debug {
             ndk {
@@ -98,7 +103,7 @@ android {
             manifestPlaceholders = [icon: "@drawable/comittonxx_debug"]
             debuggable true
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            // signingConfig signingConfigs.debug
         }
         debug32 {
             ndk {
@@ -111,7 +116,7 @@ android {
             manifestPlaceholders = [icon: "@drawable/comittonxx_debug"]
             debuggable true
             minifyEnabled false
-            signingConfig signingConfigs.debug
+            // signingConfig signingConfigs.debug
         }
         arm64 {
             ndk {
@@ -126,7 +131,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // signingConfig signingConfigs.release
         }
         arm32 {
             ndk {
@@ -141,7 +146,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // signingConfig signingConfigs.release
         }
         x64 {
             ndk {
@@ -156,7 +161,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // signingConfig signingConfigs.release
         }
         x86 {
             ndk {
@@ -171,7 +176,7 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
+            // signingConfig signingConfigs.release
         }
     }
     externalNativeBuild {
@@ -183,11 +188,14 @@ android {
     productFlavors {
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_21
-        targetCompatibility JavaVersion.VERSION_21
+        // sourceCompatibility JavaVersion.VERSION_21
+        // targetCompatibility JavaVersion.VERSION_21
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_21.toString()
+        // jvmTarget = JavaVersion.VERSION_21.toString()
+        jvmTarget = "17"
     }
     buildFeatures {
         buildConfig true
@@ -199,10 +207,10 @@ android {
 }
 
 dependencies {
-    implementation 'androidx.activity:activity:1.13.0'
-    implementation 'androidx.appcompat:appcompat:1.8.0'
-    implementation 'androidx.core:core:1.19.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
+    implementation 'androidx.activity:activity:1.9.3' // 1.13.0 から変更(compileSdk 35制限のため)
+    implementation 'androidx.appcompat:appcompat:1.7.1'
+    implementation 'androidx.core:core:1.15.0'    // 1.19.0 から変更(compileSdk 35制限のため)
+    implementation "androidx.constraintlayout:constraintlayout:2.2.1"
     implementation 'androidx.documentfile:documentfile:1.1.0'
     implementation 'androidx.fragment:fragment:1.9.0'
     implementation "androidx.preference:preference:1.2.1"

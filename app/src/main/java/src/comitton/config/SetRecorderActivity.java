@@ -167,6 +167,10 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		return flag;
 	}
 
+	public static boolean getEverythingSearchView(SharedPreferences sharedPreferences){
+		return true;
+	}
+
 	public static boolean getRecLocal(SharedPreferences sharedPreferences){
 		boolean flag;
 		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_RECLOCAL, true);
@@ -197,6 +201,11 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		for (int i = 0 ; i < listflag.length ; i ++) {
 			listnum += listflag[i] ? 1 : 0;
 		}
+		// 検索(Everything)タブ。TYPE_FILELIST(5)より後ろの値なのでlistflag[]とは別枠で追加する
+		boolean showSearch = getEverythingSearchView(sharedPreferences);
+		if (showSearch) {
+			listnum++;
+		}
 
 		short[] listtype = new short[listnum + 1];
 		int index = 1;
@@ -207,6 +216,10 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 				listtype[index] = (short)i;
 				index ++;
 			}
+		}
+		if (showSearch) {
+			listtype[index] = RecordList.TYPE_SEARCH;
+			index++;
 		}
 		return listtype;
 	}

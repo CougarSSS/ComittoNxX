@@ -31,6 +31,9 @@ import src.comitton.config.SetImageTextDetailActivity;
 import src.comitton.config.SetNoiseActivity;
 import src.comitton.config.SetHardwareImageViewerKeyActivity;
 import src.comitton.fileaccess.FileAccess;
+import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileaccess.ReadPositionSyncClient;
+import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.fileview.data.RecordItem;
 import src.comitton.dialog.BookmarkDialog;
 import src.comitton.dialog.CheckDialog;
@@ -1011,7 +1014,19 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		saveLastFile();
 
 		Logcat.d(logLevel, "既読位置を取得します.");
-		mRestorePage = mSharedPreferences.getInt(DEF.createUrl(mFilePath, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+		mRestorePage = DEF.getPageWithFallback(mSharedPreferences, mFilePath, mUser, mPass);
+
+		// サーバー同期が有効なSMBサーバー上のファイルであれば、開く前にサーバー側の既読位置を問い合わせて
+		// ローカルより優先する(「サーバー側と同期してから開く」仕様)
+		if (mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty()) {
+			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+			ReadPositionSyncClient.Position remotePosition =
+					ReadPositionSyncClient.getRemotePosition(mSharedPreferences, syncHost, mPath, mFileName);
+			if (remotePosition != null && remotePosition.page >= 0) {
+				Logcat.d(logLevel, "サーバー側の既読位置を採用します. page=" + remotePosition.page);
+				mRestorePage = remotePosition.page;
+			}
+		}
 
 		// ジェスチャー検出を有効にする
 		mDetector = new GestureDetectorCompat(this,this);
@@ -1161,6 +1176,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 		if (!mFinishActivity && mSavePage && !mReadBreak) {
 			saveCurrentPage();
+			pushReadPositionToServer();
 		}
 		if (mNoiseSwitch != null) {
 			mNoiseSwitch.recordPause(true);
@@ -5723,7 +5739,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		// ブックマーク選択
 		mMenuDialog.addSection(res.getString(R.string.selBookmarkMenu));
 
-		ArrayList<RecordItem> list = RecordList.load(null, RecordList.TYPE_BOOKMARK, mServer, mPath, mFileName);
+		ArrayList<RecordItem> list = RecordList.loadWithFallback(null, RecordList.TYPE_BOOKMARK, mServer, mPath, mFileName);
 		// ブックマークのコピーを作る
 		ArrayList<RecordItem> list_copy = new ArrayList<RecordItem>(list);
 
@@ -7424,17 +7440,35 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		Logcat.d(logLevel, "mServer=" + mServer + ", mURI=" + mURI + ", mPath=" + mPath
 				+ ", mFileName=" + mFileName + ", mImageName=" + mImageName + ", mCurrentPage=" + mCurrentPage);
 		// ブックマーク追加
+		long bookmarkDate = new Date().getTime();
+		String bookmarkImage = mImageMgr.mFileList[mCurrentPage].name;
+		int bookmarkType;
 		if ((mFileName == null || mFileName.isEmpty()) && (mImageName != null && !mImageName.isEmpty())) {
 			Logcat.d(logLevel, "画像ファイル指定.");
 				// 画像ファイル直接指定
-			RecordList.add(RecordList.TYPE_BOOKMARK, RecordItem.TYPE_IMAGEDIRECT, mServer, mPath, mFileName
-					, new Date().getTime(), mImageMgr.mFileList[mCurrentPage].name, mCurrentPage, name);
+			bookmarkType = RecordItem.TYPE_IMAGEDIRECT;
 		}
 		else {
 			Logcat.d(logLevel, "ディレクトリまたは圧縮ファイル.");
 			// ディレクトリまたは圧縮ファイル
-			RecordList.add(RecordList.TYPE_BOOKMARK, RecordItem.TYPE_IMAGE, mServer, mPath, mFileName
-					, new Date().getTime(), mImageMgr.mFileList[mCurrentPage].name, mCurrentPage, name);
+			bookmarkType = RecordItem.TYPE_IMAGE;
+		}
+		RecordList.add(RecordList.TYPE_BOOKMARK, bookmarkType, mServer, mPath, mFileName
+				, bookmarkDate, bookmarkImage, mCurrentPage, name);
+
+		// SMBサーバー上のファイルであれば、複数端末で共有できるよう栞をサーバーへも同期する
+		if (mServer != DEF.INDEX_LOCAL) {
+			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
+			RecordItem syncItem = new RecordItem();
+			syncItem.setType(bookmarkType);
+			syncItem.setServer(mServer);
+			syncItem.setPath(mPath);
+			syncItem.setFile(mFileName);
+			syncItem.setDate(bookmarkDate);
+			syncItem.setImage(bookmarkImage);
+			syncItem.setPage(mCurrentPage);
+			syncItem.setDispName(name);
+			BookmarkSyncClient.pushUpsert(mActivity, syncItem, host, mSharedPreferences);
 		}
 	}
 
@@ -7462,6 +7496,10 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		} else if (!mark && mSavePage) {
 			// しおりを起動時の状態に戻す
 			restoreCurrentPage();
+		}
+		if (mark) {
+			// 既読位置をサーバーへ反映する(mSavePage設定に関わらず、ファイルを閉じる時点の位置を同期する)
+			pushReadPositionToServer();
 		}
 
 		// 履歴保存
@@ -7570,6 +7608,19 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		}
 
 
+	}
+
+	// 既読位置をサーバーへ反映する(SMBサーバー上のアーカイブのみ対象、ベストエフォート)
+	private void pushReadPositionToServer() {
+		if (mImageMgr == null || mServer == DEF.INDEX_LOCAL || mFileName == null || mFileName.isEmpty()) {
+			return;
+		}
+		int maxpage = mImageMgr.length();
+		if (maxpage <= 0) {
+			return;
+		}
+		String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+		ReadPositionSyncClient.pushPosition(mSharedPreferences, syncHost, mPath, mFileName, mCurrentPage, maxpage, -1, -1f);
 	}
 
 	// アクティビティ一時停止時に保存される

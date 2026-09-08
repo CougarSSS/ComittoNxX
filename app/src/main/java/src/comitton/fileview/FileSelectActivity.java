@@ -48,6 +48,8 @@ import src.comitton.config.SetCommonActivity;
 import src.comitton.config.SetWebViewActivity;
 import src.comitton.expandview.ExpandActivity;
 import src.comitton.fileaccess.SmbFileAccess;
+import src.comitton.fileaccess.EverythingClient;
+import src.comitton.fileaccess.BookmarkSyncClient;
 import src.comitton.helpview.HelpActivity;
 import src.comitton.imageview.ImageManager;
 import src.comitton.imageview.TouchPanelView;
@@ -243,6 +245,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private static boolean threadstartcheck2 = false;
 	private static boolean threadstartcheck3 = false;
 	private static boolean threadstartcheck4 = false;
+
+	// Everythingの検索結果でホストに一致する登録済みSMBサーバーが無かったことを示すRecordItem.server値
+	private static final int EVERYTHING_NO_SERVER = -2;
 
 	// ダイアログ表示中に選択項目を記憶しておくのに使用
 	private FileData mFileData = null;
@@ -3614,9 +3619,16 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						int listtype = mListScreenView.getListType();
 						ArrayList<RecordItem> recordList = mListScreenView.getList(listtype);
 						if (recordList != null && 0 <= mSelectPos && mSelectPos < recordList.size()) {
+							RecordItem deletedItem = recordList.get(mSelectPos);
 							recordList.remove(mSelectPos);
 							RecordList.update(recordList, listtype);
 							mListScreenView.notifyUpdate(listtype);
+
+							// SMBサーバー上の栞であれば、削除をサーバーへも同期する
+							if (listtype == RecordList.TYPE_BOOKMARK && deletedItem.getServer() != DEF.INDEX_LOCAL) {
+								String host = new ServerSelect(mSharedPreferences, mActivity).getHost(deletedItem.getServer());
+								BookmarkSyncClient.pushDelete(mActivity, deletedItem, host, mSharedPreferences);
+							}
 						}
 						dialog.dismiss();
 					}
@@ -4812,7 +4824,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			}
 			else if (select == TitleArea.SELECT_SORT) {
 				int listtype = mListScreenView.getListType();
-				if (listtype != RecordList.TYPE_SERVER && listtype != RecordList.TYPE_MENU) {
+				if (listtype != RecordList.TYPE_SERVER && listtype != RecordList.TYPE_MENU && listtype != RecordList.TYPE_SEARCH) {
 					// ダイアログ表示
 					showSortDialog();
 				}
@@ -4936,6 +4948,15 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			}
 			else {
 				mListScreenView.mMenuListArea.cancelOperation();
+			}
+			return true;
+		}
+		else if (mTouchArea == ListScreenView.AREATYPE_SEARCHLIST) {
+			if (mListScreenView.sendTouchEvent(action, x, y)) {
+				mListScreenView.mSearchListArea.sendTouchEvent(action, x, y);
+			}
+			else {
+				mListScreenView.mSearchListArea.cancelOperation();
 			}
 			return true;
 		}
@@ -5466,6 +5487,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		else if (listtype == RecordList.TYPE_MENU) {
 			;
 		}
+		else if (listtype == RecordList.TYPE_SEARCH) {
+			// 検索結果の長押しメニューは無し
+			;
+		}
 		else if (listtype == RecordList.TYPE_BOOKMARK || listtype == RecordList.TYPE_HISTORY) {
 			String[] items = new String[3];
 			items[0] = res.getString(R.string.bm00);
@@ -5953,7 +5978,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			loadThumbnail(true);
 
 		}
-		else if (listtype == RecordList.TYPE_SERVER || listtype == RecordList.TYPE_MENU) {
+		else if (listtype == RecordList.TYPE_SERVER || listtype == RecordList.TYPE_MENU || listtype == RecordList.TYPE_SEARCH) {
 			mListScreenView.notifyUpdate(listtype);
 			return;
 		}
@@ -6108,6 +6133,140 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		// 新しいパスを設定
 		mURI = uri;
 		mPath = path;
+	}
+
+	/**
+	 * Everything検索キーワード入力ダイアログを表示
+	 */
+	private void showEverythingSearchDialog() {
+		Resources res = getResources();
+		String title = res.getString(R.string.everythingSearchTitle);
+		String hint = res.getString(R.string.everythingSearchHint);
+		mTextInputDialog = new TextInputDialog(mActivity, R.style.MyDialog, title, hint, "", "", new TextInputDialog.SearchListener() {
+			@Override
+			public void onSearch(String text) {
+				if (text != null && !text.isEmpty()) {
+					EverythingClient.search(mActivity, text, mHandler, mSharedPreferences);
+				}
+			}
+
+			@Override
+			public void onCancel() {
+			}
+
+			@Override
+			public void onClose() {
+				mTextInputDialog = null;
+			}
+		});
+		mTextInputDialog.show();
+	}
+
+	/**
+	 * Everything検索結果を「検索」タブの専用エリアへ反映し、そのタブに切り替える。
+	 * タブの先頭には再検索用のダミー項目を常に置く(listpos==0はonItemClickで横取りする)。
+	 */
+	private void showEverythingResults(ArrayList<FileData> results) {
+		ArrayList<RecordItem> recordList = buildSearchRecordList(results);
+		mListScreenView.setSearchList(recordList);
+
+		int searchIndex = mListScreenView.getListIndex(RecordList.TYPE_SEARCH);
+		if (searchIndex >= 0) {
+			mListScreenView.setListIndex(searchIndex, 0);
+		}
+		mListScreenView.notifyUpdate(RecordList.TYPE_SEARCH);
+
+		if (results == null || results.isEmpty()) {
+			Toast.makeText(mActivity, getResources().getString(R.string.everythingSearchNoResult), Toast.LENGTH_SHORT).show();
+		}
+	}
+
+	/**
+	 * Everythingの検索結果(FileDataのURIはsmb://ホスト/共有/パス/ファイル名)を、
+	 * 先頭の再検索用ダミー項目 + 実際の結果(RecordItem)のリストへ変換する。
+	 * 各結果はホスト名から登録済みSMBサーバーを検索し、一致すればそのサーバーの
+	 * user/passでそのまま開けるようにserver/path/fileを設定する(一致しなければ
+	 * EVERYTHING_NO_SERVERを設定し、タップ時にToastで通知する)。
+	 */
+	private ArrayList<RecordItem> buildSearchRecordList(ArrayList<FileData> results) {
+		Resources res = getResources();
+		ArrayList<RecordItem> list = new ArrayList<RecordItem>();
+
+		// 先頭: タップで再検索できるダミー項目(listpos==0)
+		RecordItem prompt = new RecordItem();
+		prompt.setType(RecordItem.TYPE_NONE);
+		prompt.setServer(DEF.INDEX_LOCAL);
+		prompt.setPath("");
+		prompt.setFile("");
+		prompt.setDispName(res.getString(R.string.everythingSearchPrompt));
+		list.add(prompt);
+
+		if (results == null) {
+			return list;
+		}
+
+		ServerSelect servers = new ServerSelect(mSharedPreferences, this);
+		for (int i = 0; i < results.size(); i++) {
+			FileData fd = results.get(i);
+			String uri = fd.getPath();
+			if (uri == null || !uri.startsWith("smb://")) {
+				continue;
+			}
+
+			// 登録済みサーバーの「host」欄はIPのみの場合と、"IP/共有名"のように共有名まで
+			// 含む場合があるため、"smb://"+host を丸ごとURIの接頭辞として比較する。
+			// 複数一致した場合はより長く(具体的に)一致したサーバーを優先する。
+			int matchedIndex = EVERYTHING_NO_SERVER;
+			String matchedRoot = null;
+			for (int s = 0; s < DEF.MAX_SERVER; s++) {
+				if (servers.getAccessType(s) != DEF.ACCESS_TYPE_SMB) {
+					continue;
+				}
+				String host = servers.getHost(s);
+				if (host == null || host.isEmpty()) {
+					continue;
+				}
+				String root = "smb://" + host;
+				if (uri.regionMatches(true, 0, root, 0, root.length())
+						&& (matchedRoot == null || root.length() > matchedRoot.length())) {
+					matchedIndex = s;
+					matchedRoot = root;
+				}
+			}
+
+			// 一致したサーバーのルートより後ろの部分からディレクトリ(とファイル名)を取り出す
+			String afterRoot = matchedRoot != null ? uri.substring(matchedRoot.length()) : uri.substring("smb://".length());
+			if (!afterRoot.startsWith("/")) {
+				afterRoot = "/" + afterRoot;
+			}
+
+			RecordItem rd = new RecordItem();
+			rd.setServer(matchedIndex);
+			rd.setImage("");
+			rd.setDate(fd.getDate());
+			rd.setDispName(fd.getName());
+
+			if (fd.getIsdir()) {
+				// フォルダの検索結果: そのフォルダ自体を開く(ディレクトリ一覧のタップと同じ扱い)
+				String dirPath = afterRoot.endsWith("/") ? afterRoot : afterRoot + "/";
+				rd.setType(RecordItem.TYPE_FOLDER);
+				rd.setPath(dirPath);
+				rd.setFile("");
+			}
+			else {
+				int lastSlash = afterRoot.lastIndexOf('/');
+				String dirPath = lastSlash >= 0 ? afterRoot.substring(0, lastSlash + 1) : "/";
+				String fileName = lastSlash >= 0 ? afterRoot.substring(lastSlash + 1) : afterRoot;
+				if (fileName.isEmpty()) {
+					continue;
+				}
+				rd.setType(RecordItem.TYPE_IMAGE);
+				rd.setPath(dirPath);
+				rd.setFile(fileName);
+			}
+			list.add(rd);
+		}
+		return list;
 	}
 
 	/**
@@ -7710,6 +7869,36 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			case DEF.HMSG_WORKSTREAM:
 				// ファイルアクセスの表示
 				return true;
+			case DEF.HMSG_EVERYTHING_RESULT: {
+				// Everything検索結果を受信
+				@SuppressWarnings("unchecked")
+				ArrayList<FileData> everythingResults = (ArrayList<FileData>) msg.obj;
+				showEverythingResults(everythingResults);
+				return true;
+			}
+			case DEF.HMSG_BOOKMARKSYNC_RESULT: {
+				// 栞同期結果を受信(arg1=サーバー番号、objはそのサーバーの最新栞一覧)。
+				// サーバーを正として、当該サーバー分のローカル栞を置き換える。
+				int syncServer = msg.arg1;
+				@SuppressWarnings("unchecked")
+				ArrayList<RecordItem> pulled = (ArrayList<RecordItem>) msg.obj;
+				ArrayList<RecordItem> current = mListScreenView.getList(RecordList.TYPE_BOOKMARK);
+				if (current != null && pulled != null) {
+					for (int i = current.size() - 1; i >= 0; i--) {
+						if (current.get(i).getServer() == syncServer) {
+							current.remove(i);
+						}
+					}
+					for (RecordItem data : pulled) {
+						data.setServerName(mServer.getName(data.getServer()));
+					}
+					current.addAll(pulled);
+					RecordList.update(current, RecordList.TYPE_BOOKMARK);
+					mListScreenView.setRecordList(mListScreenView.mFavoListArea, current);
+					mListScreenView.notifyUpdate(RecordList.TYPE_BOOKMARK);
+				}
+				return true;
+			}
 			case DEF.HMSG_LOADFILELIST: {
 				loadListViewAfter();
 				return true;
@@ -8670,14 +8859,23 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 //			switchFileList(); // ファイルリストをアクティブ化
 			onOptionsItemSelected(item);
 		}
+		else if (listtype == RecordList.TYPE_SEARCH && listpos == 0) {
+			// 検索タブ先頭のダミー項目 = キーワード入力を促す
+			showEverythingSearchDialog();
+		}
 		else {
-			// ディレクトリ一覧 or サーバー一覧 or ブックマーク一覧 or 履歴
+			// ディレクトリ一覧 or サーバー一覧 or ブックマーク一覧 or 履歴 or 検索結果
 			Logcat.d(logLevel, "listtype=" + listtype);
 			RecordItem rd = mListScreenView.getRecordItem(listtype, listpos);
 
 			if (rd != null) {
 				// データを利用
 				int server = rd.getServer();
+				if (listtype == RecordList.TYPE_SEARCH && server == EVERYTHING_NO_SERVER) {
+					// ホストに一致する登録済みSMBサーバーが無い検索結果
+					Toast.makeText(mActivity, getResources().getString(R.string.everythingSearchNoServer), Toast.LENGTH_LONG).show();
+					return;
+				}
 				String file = rd.getFile();
 				String path = rd.getPath();
 				String infile = rd.getImage();
@@ -8746,7 +8944,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				}
 
 				// サーバー選択とパス選択をファイル一覧に反映
-				if (mSkipUpdateFileList && (listtype == RecordList.TYPE_BOOKMARK || listtype == RecordList.TYPE_HISTORY) && mLoadListNextPath.equals(mPath)) {
+				if (mSkipUpdateFileList && (listtype == RecordList.TYPE_BOOKMARK || listtype == RecordList.TYPE_HISTORY || listtype == RecordList.TYPE_SEARCH) && mLoadListNextPath.equals(mPath)) {
 					// ファイル一覧の更新をスキップする場合はサーバー選択とパス選択をファイル一覧に反映しない
 				}
 				else {
@@ -8759,10 +8957,16 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				else if (listtype == RecordList.TYPE_HISTORY) {
 					mLoadListNextOpen = CloseDialog.CLICK_HISTORY;
 				}
+				else if (listtype == RecordList.TYPE_SEARCH && type != RecordItem.TYPE_FOLDER) {
+					// 検索結果(ファイル)からのオープンも履歴と同じ扱いにする。フォルダの場合は
+					// 下のTYPE_NONE/TYPE_FOLDER分岐でCLICK_NONEになり、ディレクトリ一覧と同じ動作にする
+					mLoadListNextOpen = CloseDialog.CLICK_HISTORY;
+				}
 				else if (type == RecordItem.TYPE_NONE || type == RecordItem.TYPE_FOLDER) {
 					mLoadListNextOpen = CloseDialog.CLICK_NONE;
 				}
-				if (mSkipUpdateFileList && (listtype == RecordList.TYPE_BOOKMARK || listtype == RecordList.TYPE_HISTORY) && mLoadListNextPath.equals(mPath)) {
+				boolean searchFolderOpen = (listtype == RecordList.TYPE_SEARCH && type == RecordItem.TYPE_FOLDER);
+				if (!searchFolderOpen && mSkipUpdateFileList && (listtype == RecordList.TYPE_BOOKMARK || listtype == RecordList.TYPE_HISTORY || listtype == RecordList.TYPE_SEARCH) && mLoadListNextPath.equals(mPath)) {
 					// ファイル一覧の更新をスキップする場合は直接ファイルを開く
 					if (nextFileOpen(mLoadListNextOpen, mLoadListNextPath, mLoadListNextFile, mLoadListNextInFile, mLoadListNextType, mLoadListNextPage)) {
 						// オープンできた
@@ -8772,6 +8976,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 				if (listtype == RecordList.TYPE_DIRECTORY){
 					Logcat.d(logLevel, "ディレクトリ一覧.");
+					switchFileList(); // ファイルリストをアクティブ化
+				}
+				else if (searchFolderOpen) {
+					Logcat.d(logLevel, "検索結果のフォルダ.");
 					switchFileList(); // ファイルリストをアクティブ化
 				}
 				else if (listtype == RecordList.TYPE_SERVER) {
@@ -8868,7 +9076,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			for (int i = 0; i < recordList.size(); i++) {
 				RecordItem data = recordList.get(i);
 				if (listtype != RecordList.TYPE_SERVER) {
-					data.setServerName(mServer.getName(data.getServer()));
+					int server = data.getServer();
+					if (server >= DEF.INDEX_LOCAL && server < DEF.MAX_SERVER) {
+						// EVERYTHING_NO_SERVER(-2)等、有効範囲外のサーバー番号は名前解決をスキップする
+						data.setServerName(mServer.getName(server));
+					}
 				}
 			}
 
@@ -8906,12 +9118,26 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			} else {
 				mSortType = (short) mSharedPreferences.getInt("RHSort", 5);
 			}
-			if (listtype != RecordList.TYPE_SERVER && listtype != RecordList.TYPE_MENU) {
+			if (listtype != RecordList.TYPE_SERVER && listtype != RecordList.TYPE_MENU && listtype != RecordList.TYPE_SEARCH) {
+				// 検索結果はEverythingの関連度順を維持したいのでソートしない
 				Collections.sort(recordList, new BookmarkComparator(mSortType));
 			}
 			mListScreenView.setRecordList(list, recordList);
 			mListScreenView.setListSortType(listtype, mSortType);
 			// list.update(false);
+		}
+
+		// 栞タブを表示するたびに、設定済みの各SMBサーバーへ最新の栞一覧を問い合わせる。
+		// 結果は非同期でHMSG_BOOKMARKSYNC_RESULTとして返り、handleMessage側でマージ・再描画する。
+		if (listtype == RecordList.TYPE_BOOKMARK) {
+			for (int s = 0; s < DEF.MAX_SERVER; s++) {
+				if (mServer.getAccessType(s) == DEF.ACCESS_TYPE_SMB) {
+					String host = mServer.getHost(s);
+					if (!host.isEmpty()) {
+						BookmarkSyncClient.pullAll(mActivity, host, s, mHandler, mSharedPreferences);
+					}
+				}
+			}
 		}
 	}
 
