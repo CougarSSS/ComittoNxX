@@ -558,6 +558,9 @@
     <string name="toolbar03">マーク</string>
     <string name="toolbar04">登録</string>
     <string name="toolbar05">終了</string>
+    <string name="toolbar06">同期</string>
+    <string name="readPositionSyncDone">%1$d件の既読位置を同期しました</string>
+    <string name="readPositionSyncUnavailable">栞同期の設定が未設定か、ローカルのファイル一覧です</string>
     <string name="listname00">ファイル</string>
     <string name="listname01">ディレクトリ</string>
     <string name="listname02">サーバー</string>

@@ -558,6 +558,9 @@
     <string name="toolbar03">Marker</string>
     <string name="toolbar04">Add</string>
     <string name="toolbar05">Exit</string>
+    <string name="toolbar06">Sync</string>
+    <string name="readPositionSyncDone">Synced read position for %1$d file(s)</string>
+    <string name="readPositionSyncUnavailable">Bookmark sync server is not configured, or this is a local file list</string>
     <string name="listname00">File</string>
     <string name="listname01">Directory</string>
     <string name="listname02">Server</string>

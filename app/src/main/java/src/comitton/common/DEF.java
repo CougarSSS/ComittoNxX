@@ -434,8 +434,9 @@ public class DEF {
 	public static final int TOOLBAR_THUMBNAIL = 2;
 	public static final int TOOLBAR_MARKER = 3;
 	//	public static final int TOOLBAR_SERVER = 4;
-	public static final int TOOLBAR_ADDDIR = 4;
-	public static final int TOOLBAR_EXIT = 5;
+	public static final int TOOLBAR_UPDATE_READPOSITION = 4;
+	public static final int TOOLBAR_ADDDIR = 5;
+	public static final int TOOLBAR_EXIT = 6;
 
 	// ページめくり表示方向
 	public static final int PAGEWAY_RIGHT = 0; // 右から左
@@ -961,6 +962,7 @@ public class DEF {
 	public static final String KEY_BOOKMARKSYNC_PASS = "BookmarkSyncPass";
 
 	public static final int HMSG_BOOKMARKSYNC_RESULT = 34;
+	public static final int HMSG_READPOSITION_PULL_RESULT = 35;
 
 	public static final String KEY_FLOATINGICONSIZE = "FloatingIconSize";
 	public static final String KEY_FLOATINGICONDIRECTIONMODE = "FloatingIconDirectionMode";

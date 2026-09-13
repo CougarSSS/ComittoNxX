@@ -50,6 +50,7 @@ import src.comitton.expandview.ExpandActivity;
 import src.comitton.fileaccess.SmbFileAccess;
 import src.comitton.fileaccess.EverythingClient;
 import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileaccess.ReadPositionSyncClient;
 import src.comitton.helpview.HelpActivity;
 import src.comitton.imageview.ImageManager;
 import src.comitton.imageview.TouchPanelView;
@@ -4784,6 +4785,18 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	}
 
 	/**
+	 * サーバー上の既読位置を取得し、現在表示中の一覧に反映する(手動同期ボタン用)。
+	 * SMB上のサーバーかつ栞同期の設定が済んでいる場合のみ有効。結果はHMSG_READPOSITION_PULL_RESULTで返る。
+	 */
+	private void updateReadPositionFromServer() {
+		if (mServer.getSelect() == DEF.INDEX_LOCAL || !ReadPositionSyncClient.isConfigured(mSharedPreferences)) {
+			Toast.makeText(mActivity, R.string.readPositionSyncUnavailable, Toast.LENGTH_SHORT).show();
+			return;
+		}
+		ReadPositionSyncClient.pullAllForHost(mSharedPreferences, mServer.getHost(), mHandler, DEF.HMSG_READPOSITION_PULL_RESULT);
+	}
+
+	/**
 	 * ファイルリストを選択
 	 */
 	private void switchFileList() {
@@ -4880,6 +4893,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						SafFileAccess.InitRelativePath();
 						mFileList.FlushFileList();
 						loadListView();
+						break;
+					case DEF.TOOLBAR_UPDATE_READPOSITION:
+						// サーバー上の既読位置を取得し、現在の一覧に反映する
+						updateReadPositionFromServer();
 						break;
 					case DEF.TOOLBAR_EXIT:
 						// アプリ終了
@@ -7904,6 +7921,44 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					mListScreenView.setRecordList(mListScreenView.mFavoListArea, current);
 					mListScreenView.notifyUpdate(RecordList.TYPE_BOOKMARK);
 				}
+				return true;
+			}
+			case DEF.HMSG_READPOSITION_PULL_RESULT: {
+				// サーバー上の既読位置一覧を受信し、現在の一覧に表示されているファイルにマッチする分だけ
+				// ローカルキャッシュ(既読/未読表示に使われるSharedPreferences)を上書きする。
+				@SuppressWarnings("unchecked")
+				ArrayList<ReadPositionSyncClient.Position> positions = (ArrayList<ReadPositionSyncClient.Position>) msg.obj;
+				int updated = 0;
+				if (positions != null && !positions.isEmpty()) {
+					ArrayList<FileData> files = mFileList.getFileList();
+					String user = mServer.getUser();
+					String pass = mServer.getPass();
+					Editor ed = mSharedPreferences.edit();
+					if (files != null) {
+						for (FileData file : files) {
+							if (file.getType() == FileData.FILETYPE_DIR || file.getType() == FileData.FILETYPE_PARENT) {
+								continue;
+							}
+							String fileNoExt = DEF.stripArchiveExt(file.getName());
+							for (ReadPositionSyncClient.Position position : positions) {
+								if (position.path != null && position.path.equals(mPath) && position.file != null && position.file.equals(fileNoExt)) {
+									String key = DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, file.getName()), user, pass);
+									ed.putInt(key, position.page);
+									ed.putInt(key + "#maxpage", position.maxpage);
+									ed.putInt(key + "#date", (int) position.date);
+									updated++;
+									break;
+								}
+							}
+						}
+					}
+					ed.apply();
+				}
+				if (updated > 0) {
+					mFileList.FlushFileList();
+					loadListView();
+				}
+				Toast.makeText(mActivity, getResources().getString(R.string.readPositionSyncDone, updated), Toast.LENGTH_SHORT).show();
 				return true;
 			}
 			case DEF.HMSG_LOADFILELIST: {

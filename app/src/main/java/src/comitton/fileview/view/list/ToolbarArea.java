@@ -17,13 +17,13 @@ import android.graphics.Typeface;
 import android.view.MotionEvent;
 
 public class ToolbarArea {
-	private final int BUTTON_NUM = 6;
+	private final int BUTTON_NUM = 7;
 
 	private final int[] ICON_ID =
 	{
-			R.drawable.toolbar_back, R.drawable.toolbar_refresh, R.drawable.toolbar_mode, R.drawable.toolbar_search, R.drawable.add_directory, R.drawable.toolbar_exit
+			R.drawable.toolbar_back, R.drawable.toolbar_refresh, R.drawable.toolbar_mode, R.drawable.toolbar_search, R.drawable.toolbar_sync, R.drawable.add_directory, R.drawable.toolbar_exit
 	};
-	private final int[] TEXT_ID = { R.string.toolbar00, R.string.toolbar01, R.string.toolbar02, R.string.toolbar03, R.string.toolbar04, R.string.toolbar05 };
+	private final int[] TEXT_ID = { R.string.toolbar00, R.string.toolbar01, R.string.toolbar02, R.string.toolbar03, R.string.toolbar06, R.string.toolbar04, R.string.toolbar05 };
 
 	private Bitmap[] mBitmap;
 	private int mTouchIndex;

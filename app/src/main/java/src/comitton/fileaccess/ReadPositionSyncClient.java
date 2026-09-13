@@ -1,6 +1,8 @@
 package src.comitton.fileaccess;
 
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Message;
 
 import com.google.gson.Gson;
 
@@ -11,6 +13,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 
 import src.comitton.common.DEF;
 import src.comitton.common.Logcat;
@@ -36,7 +39,7 @@ public class ReadPositionSyncClient {
         public long date = 0;
     }
 
-    private static boolean isConfigured(SharedPreferences sp) {
+    public static boolean isConfigured(SharedPreferences sp) {
         return !sp.getString(DEF.KEY_BOOKMARKSYNC_HOST, "").isEmpty();
     }
 
@@ -119,6 +122,64 @@ public class ReadPositionSyncClient {
             Thread.currentThread().interrupt();
         }
         return result[0];
+    }
+
+    /**
+     * 指定ホストの既読位置を全件取得する(ファイル一覧画面の「同期」ボタン用)。
+     * 結果はHandler経由で返す(msg.what = what, msg.obj = ArrayList&lt;Position&gt;)。
+     * 通信に失敗した場合はメッセージを送らない。
+     */
+    public static void pullAllForHost(final SharedPreferences sp, final String host, final Handler handler, final int what) {
+        if (host == null || host.isEmpty() || handler == null || !isConfigured(sp)) {
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                int logLevel = Logcat.LOG_LEVEL_WARN;
+                HttpURLConnection conn = null;
+                try {
+                    String url = baseUrl(sp) + "?host=" + URLEncoder.encode(host, "UTF-8");
+                    conn = (HttpURLConnection) new URL(url).openConnection();
+                    conn.setRequestMethod("GET");
+                    conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(10000);
+                    applyAuth(conn, sp);
+
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode != HttpURLConnection.HTTP_OK) {
+                        return;
+                    }
+
+                    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = in.readLine()) != null) {
+                        response.append(line);
+                    }
+                    in.close();
+
+                    Position[] positions = new Gson().fromJson(response.toString(), Position[].class);
+                    ArrayList<Position> list = new ArrayList<Position>();
+                    if (positions != null) {
+                        for (Position p : positions) {
+                            list.add(p);
+                        }
+                    }
+
+                    Message msg = handler.obtainMessage(what, list);
+                    handler.sendMessage(msg);
+                }
+                catch (Exception e) {
+                    Logcat.e(logLevel, "ReadPositionSync pullAllForHost error", e);
+                }
+                finally {
+                    if (conn != null) {
+                        conn.disconnect();
+                    }
+                }
+            }
+        }).start();
     }
 
     /**
