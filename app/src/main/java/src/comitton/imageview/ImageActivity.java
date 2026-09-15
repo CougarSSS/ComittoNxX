@@ -7216,12 +7216,13 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 	// 既読判定の最大ページ数から引き算する値を返す
 	public static int isDualMode() {
-		if (mDispMode == DEF.DISPMODE_IM_DUAL) {
-			// 見開きの場合は1増やす
-			return 2;
-		}
-		// 通常は1を返す
-		return 1;
+		// nextPage()の終端判定は見開き表示中、最終ページの1つ手前(maxpage-2)で止まる仕様のため、
+		// 表示モードによらず常に2を返す。単ページ表示では実際にはmaxpage-1まで進むため、
+		// 2を引いても既読判定には影響しない。
+		// (このメソッドは呼び出し時点の現在の表示モード(mDispMode、プロセス内で共有のstatic変数)を
+		// 見て判定していたが、これはその書庫を実際に読んだ時のモードとは限らず、
+		// 見開きで最後まで読んだ書庫が既読率99%のまま表示され続ける不具合があった)
+		return 2;
 	}
 
 	private void startScroll(int move) {
