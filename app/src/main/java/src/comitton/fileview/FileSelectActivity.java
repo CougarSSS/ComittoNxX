@@ -2428,6 +2428,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 							ed.putString("LastText", textname);
 							ed.putInt("LastOpen", lastopen);
 							ed.apply();
+							// 既読位置をサーバーへ反映する(SMBサーバー上のファイルのみ対象、ベストエフォート)
+							pushEpubReadPositionToServer(server, Path, filename, mReturnValue);
 							// 別プロセスなので書き戻す
 							jsonDialogString = data.getStringExtra("Dialog_Data");
 							jsonTappatternString = data.getStringExtra("Tappattern_Data");
@@ -6421,6 +6423,54 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	}
 
 	/**
+	 * EPUB/青空文庫の既読位置をサーバーから取得し、ローカルのValue文字列(現在ページ,総ページ数,...)に
+	 * 反映する(SMBサーバー上のファイルのみ対象、開く前に同期してから開く仕様)。
+	 * サーバー未設定・未登録・通信失敗時はローカルの値をそのまま返す。
+	 */
+	private String applyRemoteEpubValue(String localValue, String path, String fileName) {
+		if (mServer.getSelect() == DEF.INDEX_LOCAL || fileName == null || fileName.isEmpty()) {
+			return localValue;
+		}
+		ReadPositionSyncClient.Position remotePosition =
+				ReadPositionSyncClient.getRemotePosition(mSharedPreferences, mServer.getHost(), path, fileName);
+		if (remotePosition == null || remotePosition.page < 0 || remotePosition.maxpage <= 0) {
+			return localValue;
+		}
+		String[] parts = localValue.split(",");
+		if (parts.length < 6) {
+			return localValue;
+		}
+		parts[0] = String.valueOf(remotePosition.page);
+		parts[1] = String.valueOf(remotePosition.maxpage);
+		return String.join(",", parts);
+	}
+
+	/**
+	 * EPUB/青空文庫の既読位置をサーバーへ反映する(SMBサーバー上のファイルのみ対象、
+	 * 閉じる時点の位置をベストエフォートで送信)。valueは「現在ページ,総ページ数,...」形式。
+	 */
+	private void pushEpubReadPositionToServer(int server, String path, String fileName, String value) {
+		if (server == DEF.INDEX_LOCAL || fileName == null || fileName.isEmpty() || value == null) {
+			return;
+		}
+		String[] parts = value.split(",");
+		if (parts.length < 2) {
+			return;
+		}
+		try {
+			int nowpage = Integer.parseInt(parts[0]);
+			int maxpage = Integer.parseInt(parts[1]);
+			if (maxpage <= 0) {
+				return;
+			}
+			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(server);
+			ReadPositionSyncClient.pushPosition(mSharedPreferences, syncHost, path, fileName, nowpage, maxpage, -1, -1f);
+		}
+		catch (NumberFormatException e) {
+		}
+	}
+
+	/**
 	 * Epubファイルオープン
 	 */
 	private void openEpubFile(String name) {
@@ -6453,6 +6503,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			String mUriPath = DEF.relativePath(mActivity, mURI, mPath);
 			final String mFilePath = (name != null) ? DEF.relativePath(mActivity, mUriPath, name) : mUriPath;
 			String mValue = mSharedPreferences.getString(DEF.createUrl(mFilePath, mServer.getUser(), mServer.getPass()) + "#newepub", "-1,-1,0,0,0.0,0.0,0,0,0,0,0");
+			mValue = applyRemoteEpubValue(mValue, mPath, name);
 			intent.putExtra("Value", mValue);
 			setEpubWebViewData(mSharedPreferences);
 			setDialogSharedData(mSharedPreferences);
@@ -6522,6 +6573,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			intent.putExtra("Text", "");
 			// Webviewは別プロセスで起動するのでSharedPreferencesのValueをintentで受け渡す
 			String mValue = mSharedPreferences.getString(DEF.createUrl(mFilePath, mServer.getUser(), mServer.getPass()) + "#aozora", "-1,-1,0,0,0.0,0.0,0,0,0,0,0");
+			mValue = applyRemoteEpubValue(mValue, mPath, name);
 			intent.putExtra("Value", mValue);
 			// ... 他の共通Extra ...
 			setupCommonExtras(intent, name);
@@ -6723,6 +6775,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			intent.putExtra("Text", "");
 			// Webviewは別プロセスで起動するのでSharedPreferencesのValueをintentで受け渡す
 			String mValue = mSharedPreferences.getString(DEF.createUrl(mFilePath, mServer.getUser(), mServer.getPass()) + "#aozora", "-1,-1,0,0,0.0,0.0,0,0,0,0,0");
+			mValue = applyRemoteEpubValue(mValue, mPath, name);
 			intent.putExtra("Value", mValue);
 			// ... 他の共通Extra ...
 			setupCommonExtras(intent, name);
@@ -7946,6 +7999,24 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 									ed.putInt(key, position.page);
 									ed.putInt(key + "#maxpage", position.maxpage);
 									ed.putInt(key + "#date", (int) position.date);
+									if (file.getType() == FileData.FILETYPE_EPUB) {
+										// TextActivity(旧EPUBビューア)はcontainer.xmlを連結したキーを使う。
+										// EPUBの総ページ数は端末ごとのフォント・余白設定で変わるため、
+										// サーバーの絶対ページ番号(position.page/maxpage)をそのまま書くと
+										// この端末の実際の総ページ数と食い違う。この端末で既にその本を
+										// 開いたことがあり総ページ数が分かっている場合のみ、進捗率(pagerate)を
+										// この端末のmaxpageに掛け直して反映する。分からない場合は書き込まず、
+										// 次回開いた時のTextActivity側の復元処理に任せる。
+										String textKey = key + "META-INF/container.xml";
+										int localMaxpage = mSharedPreferences.getInt(textKey + "#maxpage", DEF.PAGENUMBER_NONE);
+										if (localMaxpage > 0 && position.pagerate >= 0) {
+											int convertedPage = (int) Math.round(position.pagerate * localMaxpage);
+											if (convertedPage < 0) convertedPage = 0;
+											if (convertedPage > localMaxpage) convertedPage = localMaxpage;
+											ed.putInt(textKey, convertedPage);
+											ed.putInt(textKey + "#date", (int) position.date);
+										}
+									}
 									updated++;
 									break;
 								}

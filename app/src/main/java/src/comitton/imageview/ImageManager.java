@@ -1329,6 +1329,11 @@ public class ImageManager extends InputStream implements Runnable {
 					// キャッシュディレクトリを作成
 					boolean result = mCacheDir.mkdirs();
 
+					if (archive == null) {
+						// 圧縮ファイルを開けなかった場合(SMB接続失敗等)はここで打ち切る。
+						// 打ち切らずに進むとarchiveがnullのままgetNumberOfItems()を呼びNPEでクラッシュする。
+						throw new IOException(TAG + ": cmpFileList: 圧縮ファイルを開けませんでした. mFilePath=" + mFilePath);
+					}
 					numberOfItems = archive.getNumberOfItems();
 					try (DataOutputStream dos = new DataOutputStream(new FileOutputStream(tempFile))) {
 						dos.writeInt(numberOfItems);

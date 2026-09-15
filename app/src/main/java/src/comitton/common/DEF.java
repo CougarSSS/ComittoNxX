@@ -4859,11 +4859,16 @@ public class DEF {
 		String encoding = "UTF-8";
 		String dst;
 
+		if (bytes == null || offset < 0 || length <= 0 || offset >= bytes.length) {
+			// 空/範囲外のデータ(中身が空のファイルをそのまま読んだ場合など)は空文字列を返す
+			return "";
+		}
+
 		int tmp_offset = offset;
 		int tmp_length = length;
 
 		// UTF-8のBOMがあったら削除する
-		if( bytes[offset] == (byte)0xFE && bytes[offset+1] == (byte)0xFF ){
+		if( length >= 2 && bytes[offset] == (byte)0xFE && bytes[offset+1] == (byte)0xFF ){
 			tmp_offset = offset + 1;
 			tmp_length = length - 1;
 		}

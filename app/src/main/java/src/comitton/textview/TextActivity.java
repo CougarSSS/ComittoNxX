@@ -13,6 +13,7 @@ import src.comitton.config.SetHardwareTextViewerKeyActivity;
 import src.comitton.dialog.ToolbarDialog;
 import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileaccess.ReadPositionSyncClient;
 import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.helpview.HelpActivity;
 import src.comitton.common.DEF;
@@ -379,6 +380,37 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 	private boolean mDisableTextInfo;
 
 	/**
+	 * ImageManager/TextManagerの構築とテキスト整形(formatTextFile経由でのファイル読み込みを含む)を
+	 * 一括して行う。いずれもSMB等ネットワークアクセスを伴うため、ImageActivityのZipLoadと同様に
+	 * バックグラウンドスレッドで実行してjoin()で待ち合わせる(メインスレッドで直接呼ぶと
+	 * NetworkOnMainThreadExceptionが発生する。cmpFileList内のアーカイブオープンだけでなく、
+	 * formatTextFile内のファイル読み込み(LoadFileToCache)でも発生し、そちらはリトライループ込みで
+	 * メインスレッド上で実行されるためANR(フリーズ)になっていた)。
+	 */
+	private TextManager loadTextManagerSync(int openmode, String textName, int fileType) {
+		final TextManager[] holder = new TextManager[1];
+		Thread thread = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				ImageManager mgr = new ImageManager(mActivity, mUriPath, mFileName, mUser, mPass, 0, mHandler, true, openmode, 1);
+				mgr.LoadImageList(0, 0, 0, 0, 0);
+				mImageMgr = mgr;
+				TextManager textMgr = new TextManager(mImageMgr, textName, mUser, mPass, mHandler, mActivity, fileType);
+				FileSelectList.SetReadConfig(mSharedPreferences, textMgr);
+				holder[0] = textMgr;
+			}
+		});
+		thread.start();
+		try {
+			thread.join();
+		}
+		catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+		}
+		return holder[0];
+	}
+
+	/**
 	 * 画面が作成された時に発生します。
 	 *
 	 * @param savedInstanceState
@@ -560,29 +592,33 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		Logcat.d(logLevel, "既読位置を取得します.");
 		mRestoreMaxPage = mSharedPreferences.getInt(DEF.createUrl(mUriTextPath, mUser, mPass) + "#maxpage", DEF.PAGENUMBER_NONE);
 		mRestorePage = mSharedPreferences.getInt(DEF.createUrl(mUriTextPath, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+
+		// EPUBかつSMBサーバー上のファイルであれば、開く前にサーバー側の既読位置を問い合わせる。
+		// EPUB/テキストの総ページ数は端末ごとのフォント・余白・画面サイズ設定によって変わるため、
+		// 絶対ページ番号ではなく進捗率(pagerate)で受け取り、この端末のmaxpageに掛け直して使う
+		// (絶対ページ番号をそのまま使うと、総ページ数が違う端末間で読書位置がずれてしまう)。
+		ReadPositionSyncClient.Position remoteEpubPosition = null;
+		if (mFileType == FileData.FILETYPE_EPUB && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty()) {
+			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+			remoteEpubPosition = ReadPositionSyncClient.getRemotePosition(mSharedPreferences, syncHost, mPath, mFileName);
+			if (remoteEpubPosition != null && remoteEpubPosition.pagerate < 0) {
+				// 進捗率を持たない(旧形式の)データは使わない
+				remoteEpubPosition = null;
+			}
+		}
 		Logcat.d(logLevel, "mRestorePage=" + mRestorePage + ", Url=" + DEF.createUrl(mUriTextPath, mUser, mPass));
 		int maxpage = mRestoreMaxPage;
 		int	state = mRestorePage;
 		if (maxpage == DEF.PAGENUMBER_NONE)	{
 			//	最大数が0の場合は補完する
 			if (mTextName.equals("META-INF/container.xml"))	{
-				int openmode = 0;
-				// ファイルリストの読み込み
-				openmode = ImageManager.OPENMODE_TEXTVIEW;
-				mImageMgr = new ImageManager(this.mActivity, mUriPath, mFileName, mUser, mPass, 0, mHandler, true, openmode, 1);
-				mImageMgr.LoadImageList(0, 0, 0, 0, 0);
-				mTextMgr = new TextManager(mImageMgr, "META-INF/container.xml", mUser, mPass, mHandler, mActivity, FileData.FILETYPE_EPUB);
-				FileSelectList.SetReadConfig(mSharedPreferences,mTextMgr);
+				// ファイルリストの読み込み・整形
+				mTextMgr = loadTextManagerSync(ImageManager.OPENMODE_TEXTVIEW, "META-INF/container.xml", FileData.FILETYPE_EPUB);
 				maxpage = mTextMgr.length();
 			}
 			else {
-				int openmode = 0;
-				// ファイルリストの読み込み
-				openmode = ImageManager.OPENMODE_TEXTVIEW;
-				mImageMgr = new ImageManager(this.mActivity, mUriPath, mFileName, mUser, mPass, 0, mHandler, true, openmode, 1);
-				mImageMgr.LoadImageList(0, 0, 0, 0, 0);
-				mTextMgr = new TextManager(mImageMgr, mTextName, mUser, mPass, mHandler, mActivity, FileData.FILETYPE_TXT);
-				FileSelectList.SetReadConfig(mSharedPreferences,mTextMgr);
+				// ファイルリストの読み込み・整形
+				mTextMgr = loadTextManagerSync(ImageManager.OPENMODE_TEXTVIEW, mTextName, FileData.FILETYPE_TXT);
 				maxpage = mTextMgr.length();
 			}
 			if (mRestorePage == DEF.PAGENUMBER_READ)	state = maxpage;
@@ -595,6 +631,14 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		} else {
 			//	再計算する
 			mRestorePageRate = (float)state / (float)maxpage;
+		}
+		if (remoteEpubPosition != null && maxpage > 0) {
+			// サーバー側の進捗率を、この端末で計算した総ページ数に換算して優先する
+			state = (int) Math.round(remoteEpubPosition.pagerate * maxpage);
+			if (state < 0) state = 0;
+			if (state > maxpage) state = maxpage;
+			mRestorePageRate = (float) remoteEpubPosition.pagerate;
+			Logcat.d(logLevel, "サーバー側の既読位置を採用します. pagerate=" + remoteEpubPosition.pagerate + ", maxpage=" + maxpage + " -> state=" + state);
 		}
 		mRestorePage = state;
 		mCurrentPage = (mPage != DEF.PAGENUMBER_UNREAD) ? mPage : state;
@@ -3852,6 +3896,17 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 			ed.putInt(DEF.createUrl(mUriTextPath, mUser, mPass) + "#date", (int) (mTimestamp / 1000));
 		}
 		ed.apply();
+
+		// EPUBかつSMBサーバー上のファイルであれば、既読位置をサーバーへ反映する(ベストエフォート)。
+		// 総ページ数は端末ごとのフォント・余白・画面サイズ設定で変わるため、絶対ページ番号(page/maxpage)
+		// はこの端末内でのみ意味を持つ参考値として送りつつ、実際に他端末での復元に使うのは
+		// pagerate(進捗率)。savePageは既読時にDEF.PAGENUMBER_READ(-2)等のセンチネル値になり得るため、
+		// pagerateは(既読時は1.0とみなして)別途savePageRateから求める。
+		if (mFileType == FileData.FILETYPE_EPUB && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && maxpage > 0) {
+			float pushRate = (savePage == DEF.PAGENUMBER_READ) ? 1f : savePageRate;
+			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+			ReadPositionSyncClient.pushPosition(mSharedPreferences, syncHost, mPath, mFileName, mCurrentPage, (int) maxpage, -1, pushRate);
+		}
 	}
 
 	// 起動時のページ情報に戻す
