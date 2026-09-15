@@ -13,6 +13,7 @@ import src.comitton.config.SetHardwareTextViewerKeyActivity;
 import src.comitton.dialog.ToolbarDialog;
 import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileaccess.HistorySyncClient;
 import src.comitton.fileaccess.ReadPositionSyncClient;
 import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.helpview.HelpActivity;
@@ -3940,8 +3941,27 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 			int type = (mFileName == null || mFileName.isEmpty()) ? RecordItem.TYPE_TEXT : RecordItem.TYPE_COMPTEXT;
 			mCurrentPage = mTextView.getPage();
 			mCurrentPageRate = (float)mCurrentPage / mTextMgr.length();
+			long historyDate = new Date().getTime();
 			RecordList.add(RecordList.TYPE_HISTORY, type, mServer, mLocalFileName
-					, mTextName, new Date().getTime(), null, 0, mCurrentPageRate, mCurrentPage, null);
+					, mTextName, historyDate, null, 0, mCurrentPageRate, mCurrentPage, null);
+
+			// SMBサーバー上のファイルであれば、複数端末で共有できるよう履歴もサーバーへ同期する
+			// (onAddBookmarkと同じ判定・同じpath/fileを使う)
+			if (mServer != DEF.INDEX_LOCAL) {
+				String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
+				RecordItem syncItem = new RecordItem();
+				syncItem.setType(type);
+				syncItem.setServer(mServer);
+				syncItem.setPath(mLocalFileName);
+				syncItem.setFile(mTextName);
+				syncItem.setDate(historyDate);
+				syncItem.setImage("");
+				syncItem.setChapter(0);
+				syncItem.setPageRate(mCurrentPageRate);
+				syncItem.setPage(mCurrentPage);
+				syncItem.setDispName(null);
+				HistorySyncClient.pushUpsert(mActivity, syncItem, host, mSharedPreferences);
+			}
 
 			// タスク切り替え時しおりを保存
 			if (isSavePage) {

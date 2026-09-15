@@ -963,6 +963,7 @@ public class DEF {
 
 	public static final int HMSG_BOOKMARKSYNC_RESULT = 34;
 	public static final int HMSG_READPOSITION_PULL_RESULT = 35;
+	public static final int HMSG_HISTORYSYNC_RESULT = 36;
 
 	public static final String KEY_FLOATINGICONSIZE = "FloatingIconSize";
 	public static final String KEY_FLOATINGICONDIRECTIONMODE = "FloatingIconDirectionMode";

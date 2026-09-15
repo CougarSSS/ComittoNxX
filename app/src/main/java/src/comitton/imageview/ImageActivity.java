@@ -32,6 +32,7 @@ import src.comitton.config.SetNoiseActivity;
 import src.comitton.config.SetHardwareImageViewerKeyActivity;
 import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileaccess.HistorySyncClient;
 import src.comitton.fileaccess.ReadPositionSyncClient;
 import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.fileview.data.RecordItem;
@@ -7764,9 +7765,27 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			else {
 				Logcat.d(logLevel, "ディレクトリまたは圧縮ファイル.");
 				// ディレクトリまたは圧縮ファイル
+				long historyDate = new Date().getTime();
 				RecordList.add(RecordList.TYPE_HISTORY, RecordItem.TYPE_IMAGE
-						, mServer, mPath, mFileName, new Date().getTime()
+						, mServer, mPath, mFileName, historyDate
 						, mImageMgr.mFileList[mCurrentPage].name, mCurrentPage, null);
+
+				// SMBサーバー上のファイルであれば、複数端末で共有できるよう履歴もサーバーへ同期する
+				if (mServer != DEF.INDEX_LOCAL) {
+					String host = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+					RecordItem syncItem = new RecordItem();
+					syncItem.setType(RecordItem.TYPE_IMAGE);
+					syncItem.setServer(mServer);
+					syncItem.setPath(mPath);
+					syncItem.setFile(mFileName);
+					syncItem.setDate(historyDate);
+					syncItem.setImage(mImageMgr.mFileList[mCurrentPage].name);
+					syncItem.setChapter(-1);
+					syncItem.setPageRate(-1f);
+					syncItem.setPage(mCurrentPage);
+					syncItem.setDispName(null);
+					HistorySyncClient.pushUpsert(mActivity, syncItem, host, mSharedPreferences);
+				}
 			}
 		}
 	}

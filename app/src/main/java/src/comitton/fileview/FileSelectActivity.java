@@ -50,6 +50,7 @@ import src.comitton.expandview.ExpandActivity;
 import src.comitton.fileaccess.SmbFileAccess;
 import src.comitton.fileaccess.EverythingClient;
 import src.comitton.fileaccess.BookmarkSyncClient;
+import src.comitton.fileaccess.HistorySyncClient;
 import src.comitton.fileaccess.ReadPositionSyncClient;
 import src.comitton.helpview.HelpActivity;
 import src.comitton.imageview.ImageManager;
@@ -3629,10 +3630,14 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 							RecordList.update(recordList, listtype);
 							mListScreenView.notifyUpdate(listtype);
 
-							// SMBサーバー上の栞であれば、削除をサーバーへも同期する
+							// SMBサーバー上の栞/履歴であれば、削除をサーバーへも同期する
 							if (listtype == RecordList.TYPE_BOOKMARK && deletedItem.getServer() != DEF.INDEX_LOCAL) {
 								String host = new ServerSelect(mSharedPreferences, mActivity).getHost(deletedItem.getServer());
 								BookmarkSyncClient.pushDelete(mActivity, deletedItem, host, mSharedPreferences);
+							}
+							else if (listtype == RecordList.TYPE_HISTORY && deletedItem.getServer() != DEF.INDEX_LOCAL) {
+								String host = new ServerSelect(mSharedPreferences, mActivity).getHost(deletedItem.getServer());
+								HistorySyncClient.pushDelete(mActivity, deletedItem, host, mSharedPreferences);
 							}
 						}
 						dialog.dismiss();
@@ -7976,6 +7981,29 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				}
 				return true;
 			}
+			case DEF.HMSG_HISTORYSYNC_RESULT: {
+				// 履歴同期結果を受信(arg1=サーバー番号、objはそのサーバーの最新履歴一覧)。
+				// サーバーを正として、当該サーバー分のローカル履歴を置き換える。
+				int syncServer = msg.arg1;
+				@SuppressWarnings("unchecked")
+				ArrayList<RecordItem> pulled = (ArrayList<RecordItem>) msg.obj;
+				ArrayList<RecordItem> current = mListScreenView.getList(RecordList.TYPE_HISTORY);
+				if (current != null && pulled != null) {
+					for (int i = current.size() - 1; i >= 0; i--) {
+						if (current.get(i).getServer() == syncServer) {
+							current.remove(i);
+						}
+					}
+					for (RecordItem data : pulled) {
+						data.setServerName(mServer.getName(data.getServer()));
+					}
+					current.addAll(pulled);
+					RecordList.update(current, RecordList.TYPE_HISTORY);
+					mListScreenView.setRecordList(mListScreenView.mHistListArea, current);
+					mListScreenView.notifyUpdate(RecordList.TYPE_HISTORY);
+				}
+				return true;
+			}
 			case DEF.HMSG_READPOSITION_PULL_RESULT: {
 				// サーバー上の既読位置一覧を受信し、現在の一覧に表示されているファイルにマッチする分だけ
 				// ローカルキャッシュ(既読/未読表示に使われるSharedPreferences)を上書きする。
@@ -9268,6 +9296,19 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					String host = mServer.getHost(s);
 					if (!host.isEmpty()) {
 						BookmarkSyncClient.pullAll(mActivity, host, s, mHandler, mSharedPreferences);
+					}
+				}
+			}
+		}
+
+		// 履歴タブを表示するたびに、設定済みの各SMBサーバーへ最新の履歴一覧を問い合わせる。
+		// 結果は非同期でHMSG_HISTORYSYNC_RESULTとして返り、handleMessage側でマージ・再描画する。
+		if (listtype == RecordList.TYPE_HISTORY) {
+			for (int s = 0; s < DEF.MAX_SERVER; s++) {
+				if (mServer.getAccessType(s) == DEF.ACCESS_TYPE_SMB) {
+					String host = mServer.getHost(s);
+					if (!host.isEmpty()) {
+						HistorySyncClient.pullAll(mActivity, host, s, mHandler, mSharedPreferences);
 					}
 				}
 			}
