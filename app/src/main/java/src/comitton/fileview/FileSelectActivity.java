@@ -5597,8 +5597,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			;
 		}
 		else if (listtype == RecordList.TYPE_LIBRARY) {
-			// 書庫管理一覧の長押しメニューは無し
-			;
+			showLibraryLongClickDialog(mSelectPos);
 		}
 		else if (listtype == RecordList.TYPE_BOOKMARK || listtype == RecordList.TYPE_HISTORY) {
 			String[] items = new String[3];
@@ -6607,6 +6606,110 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private void refreshLibraryFromServer() {
 		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 手動更新を開始します(EverythingLibraryClient.list)");
 		EverythingLibraryClient.list(mActivity, mHandler, mSharedPreferences);
+	}
+
+	// 書庫管理タブの作品(またはドリルダウン中の巻)長押しメニュー。対象作品の存在確認を行う
+	private void showLibraryLongClickDialog(int listpos) {
+		final LibraryCache.LibraryWork target;
+		if (mLibraryDrilldownWork != null) {
+			if (listpos <= 0) {
+				return;
+			}
+			target = mLibraryDrilldownWork;
+		}
+		else {
+			int workIndex = listpos - 1;
+			if (mLibraryFilteredWorks == null || workIndex < 0 || workIndex >= mLibraryFilteredWorks.size()) {
+				return;
+			}
+			target = mLibraryFilteredWorks.get(workIndex);
+		}
+		Resources res = getResources();
+		final String[] items = { res.getString(R.string.libraryMenuVerify) };
+		mListDialog = new ListDialog(this, R.style.MyDialog, target.title, items, -1, new ListSelectListener() {
+			@Override
+			public void onSelectItem(int item) {
+				verifyLibraryWork(target);
+			}
+
+			@Override
+			public void onClose() {
+				mListDialog = null;
+			}
+		});
+		mListDialog.show();
+	}
+
+	// 作品の各巻が実際にSMB上に存在するか確認し、存在しない巻をキャッシュから削除する。
+	// 接続できない場合に全件「無い」と誤判定して消してしまわないよう、共有ルートの
+	// 到達確認に失敗したサーバーの巻と、確認中に例外が出た場合は何も削除しない。
+	private void verifyLibraryWork(final LibraryCache.LibraryWork work) {
+		final int logLevel = Logcat.LOG_LEVEL_WARN;
+		final ArrayList<LibraryEntry> volumes = new ArrayList<LibraryEntry>(work.volumes);
+		final ArrayList<LibraryServerRoot> roots = buildLibraryServerRoots();
+		final ServerSelect servers = new ServerSelect(mSharedPreferences, this);
+		final Handler mainHandler = new Handler(Looper.getMainLooper());
+		Toast.makeText(mActivity, getResources().getString(R.string.libraryVerifyStart), Toast.LENGTH_SHORT).show();
+		Logcat.w(logLevel, "書庫管理: 存在確認を開始. title=" + work.title + ", 巻数=" + volumes.size());
+
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				ArrayList<LibraryEntry> missing = new ArrayList<LibraryEntry>();
+				int checked = 0;
+				boolean failed = false;
+				java.util.HashSet<Integer> reachable = new java.util.HashSet<Integer>();
+				try {
+					for (LibraryEntry e : volumes) {
+						LibraryResolvedFile resolved = resolveLibraryFileLocation(e, roots, false);
+						if (resolved == null) {
+							continue;
+						}
+						String rootUri = servers.getURI(resolved.server);
+						String user = servers.getUser(resolved.server);
+						String pass = servers.getPass(resolved.server);
+						if (!reachable.contains(resolved.server)) {
+							if (!FileAccess.exists(mActivity, rootUri, user, pass)) {
+								Logcat.w(logLevel, "書庫管理: 共有ルートに到達できないため中止. server=" + resolved.server);
+								failed = true;
+								break;
+							}
+							reachable.add(resolved.server);
+						}
+						String fileUri = DEF.relativePath(mActivity, rootUri, resolved.dirPath, resolved.fileName);
+						checked++;
+						if (!FileAccess.exists(mActivity, fileUri, user, pass)) {
+							Logcat.w(logLevel, "書庫管理: 実在しない巻を検出. " + e.getFullPath());
+							missing.add(e);
+						}
+					}
+				}
+				catch (Exception ex) {
+					Logcat.e(logLevel, "書庫管理: 存在確認中にエラーが発生したため削除せず中止", ex);
+					failed = true;
+				}
+				final boolean hasError = failed;
+				final ArrayList<LibraryEntry> toRemove = hasError ? new ArrayList<LibraryEntry>() : missing;
+				final int checkedCount = checked;
+				mainHandler.post(new Runnable() {
+					@Override
+					public void run() {
+						Resources r = getResources();
+						if (hasError) {
+							Toast.makeText(mActivity, r.getString(R.string.libraryVerifyError), Toast.LENGTH_LONG).show();
+							return;
+						}
+						int removed = LibraryCache.removeEntries(toRemove);
+						Logcat.w(logLevel, "書庫管理: 存在確認完了. 確認=" + checkedCount + "件, 削除=" + removed + "件");
+						Toast.makeText(mActivity, String.format(r.getString(R.string.libraryVerifyDone), checkedCount, removed), Toast.LENGTH_LONG).show();
+						if (removed > 0) {
+							mLibraryVirtualFileList = null;
+							refreshLibraryList();
+						}
+					}
+				});
+			}
+		}).start();
 	}
 
 	// 開発者専用: 一括インポート用JSON(adb pushで配置する想定)を読み込む

@@ -71,6 +71,34 @@ public class LibraryCache {
     }
 
     /**
+     * 指定エントリ((path, name)一致)をキャッシュから削除して保存する。
+     * @return 実際に削除した件数
+     */
+    public static synchronized int removeEntries(List<LibraryEntry> targets) {
+        if (targets == null || targets.isEmpty()) {
+            return 0;
+        }
+        java.util.HashSet<String> keys = new java.util.HashSet<>();
+        for (LibraryEntry t : targets) {
+            keys.add(t.key());
+        }
+        ArrayList<LibraryEntry> current = getEntries();
+        int before = current.size();
+        for (int i = current.size() - 1; i >= 0; i--) {
+            if (keys.contains(current.get(i).key())) {
+                current.remove(i);
+            }
+        }
+        int removed = before - current.size();
+        if (removed > 0) {
+            saveToDisk(current);
+            sWorkListDirty = true;
+        }
+        Logcat.w(Logcat.LOG_LEVEL_WARN, "removeEntries: 対象" + targets.size() + "件中" + removed + "件を削除");
+        return removed;
+    }
+
+    /**
      * キャッシュを空にする(メモリ・ディスク両方)。
      * サーバー側で大量のファイル名変更/整理が行われた場合、merge()の
      * 「追加・更新のみで削除しない」仕様では対応できない(旧ファイル名の

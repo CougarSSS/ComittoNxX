@@ -577,6 +577,10 @@
     <string name="libraryMenuClearFilter">絞り込みを解除</string>
     <string name="libraryMenuImport">初期データを読み込む</string>
     <string name="libraryMenuImportError">書庫管理データの読み込みに失敗しました</string>
+    <string name="libraryMenuVerify">存在確認して実在しない巻を削除</string>
+    <string name="libraryVerifyStart">サーバー上のファイルを確認しています...</string>
+    <string name="libraryVerifyDone">%1$d巻を確認し、実在しない%2$d巻を削除しました</string>
+    <string name="libraryVerifyError">確認できませんでした(サーバーに接続できない可能性があります)。何も削除していません.</string>
     <string name="libraryFilterTitle">書庫管理を検索</string>
     <string name="libraryFilterHint">タイトルの一部を入力してください</string>
     <string name="maxthread00">自動</string>
