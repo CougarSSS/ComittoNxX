@@ -35,7 +35,11 @@ public class RecordList {
 	public static final int TYPE_FILELIST = 5;
 	// Everything検索結果一覧(ディスク永続化はしない。検索するたびにメモリ上のリストを差し替える)
 	public static final int TYPE_SEARCH = 6;
-	public static final int TYPE_MAXNUM = TYPE_SEARCH;
+	// 書庫管理(EverythingX /list経由の作品/巻一覧)。TYPE_SEARCHと同様にRecordList汎用の
+	// per-type .datファイル機構(FILENAME[]索引)は使わず、LibraryCacheが独自形式で
+	// 別途永続化する。ここでのload/checkModifiedはメモリ上のリストをそのまま返す。
+	public static final int TYPE_LIBRARY = 7;
+	public static final int TYPE_MAXNUM = TYPE_LIBRARY;
 	private static final String[] FILENAME = {"directory.dat", "server.dat", "bookmark.dat", "history.dat", "optmenu.dat"};
 	private static final String SEPARATOR = "\t";
 	private static final int INDEX_TYPE = 0;
@@ -68,8 +72,8 @@ public class RecordList {
 	 * 		- 画面更新の要・不要
 	 */
 	public static boolean checkModified(int listtype, long modified) {
-		if (listtype == TYPE_SERVER || listtype == TYPE_MENU || listtype == TYPE_SEARCH){
-			// TYPE_SEARCHはファイルに永続化しない(FILENAME[]に対応エントリが無いためgetFilePath()を呼ばない)
+		if (listtype == TYPE_SERVER || listtype == TYPE_MENU || listtype == TYPE_SEARCH || listtype == TYPE_LIBRARY){
+			// TYPE_SEARCH/TYPE_LIBRARYはファイルに永続化しない(FILENAME[]に対応エントリが無いためgetFilePath()を呼ばない)
 			return true;
 		}
 		else {
@@ -159,6 +163,14 @@ public class RecordList {
 				prompt.setFile("");
 				prompt.setDispName(res.getString(R.string.everythingSearchPrompt));
 				list.add(prompt);
+			}
+			return list;
+		}
+		else if (listtype == TYPE_LIBRARY) {
+			// 書庫管理一覧もディスクに永続化しない(RecordList汎用機構は使わない)。
+			// LibraryCache.buildWorkList()等で差し替えられたメモリ上のリストをそのまま返す。
+			if (list == null) {
+				list = new ArrayList<RecordItem>();
 			}
 			return list;
 		}
@@ -459,6 +471,12 @@ public class RecordList {
 
 	public static void update(ArrayList<RecordItem> list, int listtype) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
+		if (listtype == TYPE_LIBRARY) {
+			// 書庫管理一覧はRecordList汎用の.dat機構を使わない(LibraryCacheが別途永続化する)。
+			// FILENAME[]にTYPE_LIBRARY分のエントリが無いため、ここで抜けないとgetFilePath()で
+			// ArrayIndexOutOfBoundsExceptionになる。
+			return;
+		}
 		String filepath = getFilePath(listtype);
 		FileOutputStream os;
 		OutputStreamWriter sw;

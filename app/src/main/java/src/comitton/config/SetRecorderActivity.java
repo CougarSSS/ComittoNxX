@@ -171,6 +171,10 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		return true;
 	}
 
+	public static boolean getLibraryView(SharedPreferences sharedPreferences){
+		return true;
+	}
+
 	public static boolean getRecLocal(SharedPreferences sharedPreferences){
 		boolean flag;
 		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_RECLOCAL, true);
@@ -206,6 +210,11 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		if (showSearch) {
 			listnum++;
 		}
+		// 書庫管理タブ。同じくTYPE_FILELIST(5)より後ろの値なので別枠で追加する
+		boolean showLibrary = getLibraryView(sharedPreferences);
+		if (showLibrary) {
+			listnum++;
+		}
 
 		short[] listtype = new short[listnum + 1];
 		int index = 1;
@@ -219,6 +228,10 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		}
 		if (showSearch) {
 			listtype[index] = RecordList.TYPE_SEARCH;
+			index++;
+		}
+		if (showLibrary) {
+			listtype[index] = RecordList.TYPE_LIBRARY;
 			index++;
 		}
 		return listtype;

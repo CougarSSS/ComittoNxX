@@ -568,6 +568,17 @@
     <string name="listname04">History</string>
     <string name="listname05">Menu</string>
     <string name="listname06">Search</string>
+    <string name="listname07">Library</string>
+    <string name="libraryTapToSearch">Tap to search Library titles</string>
+    <string name="libraryVolumeCount">%1$d volume(s)</string>
+    <string name="librarySyncDone">Library updated: %1$d new item(s)</string>
+    <string name="libraryMenuRefresh">Refresh from server</string>
+    <string name="libraryMenuSearch">Search by title</string>
+    <string name="libraryMenuClearFilter">Clear filter</string>
+    <string name="libraryMenuImport">Import initial data</string>
+    <string name="libraryMenuImportError">Failed to import Library data</string>
+    <string name="libraryFilterTitle">Search Library</string>
+    <string name="libraryFilterHint">Enter part of a title</string>
     <string name="maxthread00">Auto</string>
     <string name="maxthread01">1 therad</string>
     <string name="maxthread02">2 threads</string>
