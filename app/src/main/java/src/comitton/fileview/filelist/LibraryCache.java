@@ -14,33 +14,26 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import src.comitton.common.DEF;
 import src.comitton.common.Logcat;
-import src.comitton.fileaccess.EverythingLibraryClient;
 import src.comitton.fileview.data.LibraryEntry;
 
 /**
  * 書庫管理タブ(TYPE_LIBRARY)用のフラットなアーカイブ一覧のキャッシュ/永続化/グルーピングを担当する。
  *
  * RecordList汎用の.dat機構(FILENAME[]索引によるper-type単一ファイル)は使わず、
- * ここで独自に <conf>/library.dat (TSV: path\tname\tsize\tdateModified) に永続化する。
+ * ここで独自に <conf>/library.dat (TSV: path\tname\tsize\tdateModified\ttitle) に永続化する。
  * 個々のアーカイブエントリをフラットなまま保存し、作品単位のグルーピングは表示のたびに
- * buildWorkList()で計算する(検証済みPythonスクリプトのロジックをそのまま移植)。
+ * buildWorkList()で計算する。タイトル抽出(表記ゆれ吸収・手動補正含む)はサーバー側
+ * (bookmark-sync-server /library の work_title)で行っており、ここでは受け取った値を
+ * そのままグルーピングキーとして使うだけ(以前ここにあった正規表現ベースの抽出ロジックは
+ * サーバー側のauto_title()へ移植済み)。
  */
 public class LibraryCache {
     private static final String TAG = "LibraryCache";
     private static final String FILENAME = "library.dat";
     private static final String SEPARATOR = "\t";
-
-    // 漫画フォルダ: 相対フォルダパス(サブフォルダ込み)の先頭についた[XX]配布者タグを除去して作品名にする
-    private static final Pattern MANGA_PREFIX_PATTERN = Pattern.compile("^\\[[A-Za-z]{2}\\]");
-    // Aria2c_DL: ファイル名(拡張子除去後)から巻数表記を除去して作品名を抽出する
-    private static final Pattern ARIA_EXT_PATTERN = Pattern.compile("\\.(zip|rar|cbz)$", Pattern.CASE_INSENSITIVE);
-    private static final Pattern ARIA_VOL_PATTERN = Pattern.compile(
-            "^(?<title>.+?)[\\s_]*(?:(?:@COMIC|THE\\s+COMIC)\\s*)?(?:[Vv]\\d{1,3}|第\\d{1,3}巻)s?(?:\\s+DL)?$");
 
     private static ArrayList<LibraryEntry> sCache;
     // buildWorkList()の結果キャッシュ。作品数×全体正規表現グルーピングは全1万件超だと
@@ -139,7 +132,11 @@ public class LibraryCache {
                     String name = parts[1];
                     long size = Long.parseLong(parts[2]);
                     long date = Long.parseLong(parts[3]);
-                    list.add(new LibraryEntry(path, name, size, date));
+                    // titleは後から追加した列。旧形式(4列のみ)のキャッシュファイルから読んだ場合は
+                    // 空になるが、次回の「端末側を更新」でサーバー提供のtitleを含めて丸ごと
+                    // 書き直されるため一時的なもの(buildWorkList()側でも空ならファイル名にフォールバックする)。
+                    String title = parts.length >= 5 ? parts[4] : "";
+                    list.add(new LibraryEntry(path, name, size, date, title));
                 }
                 catch (NumberFormatException ex) {
                     skipped++;
@@ -169,7 +166,8 @@ public class LibraryCache {
             OutputStreamWriter sw = new OutputStreamWriter(os, "UTF-8");
             BufferedWriter bw = new BufferedWriter(sw, 8192);
             for (LibraryEntry e : list) {
-                bw.write(sanitize(e.getPath()) + SEPARATOR + sanitize(e.getName()) + SEPARATOR + e.getSize() + SEPARATOR + e.getDateModified());
+                bw.write(sanitize(e.getPath()) + SEPARATOR + sanitize(e.getName()) + SEPARATOR + e.getSize() + SEPARATOR + e.getDateModified()
+                        + SEPARATOR + sanitize(e.getTitle()));
                 bw.newLine();
             }
             bw.flush();
@@ -246,11 +244,16 @@ public class LibraryCache {
             return sWorkListCache;
         }
         int logLevel = Logcat.LOG_LEVEL_WARN;
-        // [0]=Aria2c_DLの巻数表記フォールバック件数, [1]=Aria2c_DL総件数, [2]=想定外パス件数
-        int[] fallbackStat = new int[3];
+        int fallbackCount = 0;
         LinkedHashMap<String, ArrayList<LibraryEntry>> groups = new LinkedHashMap<>();
         for (LibraryEntry e : flatList) {
-            String title = resolveTitle(e, fallbackStat);
+            // titleはサーバー側(bookmark-sync-server /library のwork_title)で計算済み。
+            // 空の場合(旧形式ローカルキャッシュ等)はファイル名を単体作品として扱うフォールバック。
+            String title = e.getTitle();
+            if (title == null || title.isEmpty()) {
+                title = e.getName() != null ? e.getName() : "";
+                fallbackCount++;
+            }
             ArrayList<LibraryEntry> g = groups.get(title);
             if (g == null) {
                 g = new ArrayList<>();
@@ -281,57 +284,10 @@ public class LibraryCache {
             }
         });
         Logcat.w(logLevel, "buildWorkList: " + flatList.size() + "件 → " + works.size() + "作品にグルーピング"
-                + "(Aria2c_DL巻数パターン未マッチ(単体作品フォールバック)=" + fallbackStat[0] + "/" + fallbackStat[1]
-                + ", 想定外パス=" + fallbackStat[2] + ")");
+                + "(title未設定によるファイル名フォールバック=" + fallbackCount + "件)");
         sWorkListCache = works;
         sWorkListDirty = false;
         return works;
-    }
-
-    private static String resolveTitle(LibraryEntry e) {
-        return resolveTitle(e, null);
-    }
-
-    // fallbackStatが非nullの場合、[0]=Aria2c_DLフォールバック件数, [1]=Aria2c_DL総件数,
-    // [2]=想定外パス件数を加算する(buildWorkList()の集計ログ用)。
-    private static String resolveTitle(LibraryEntry e, int[] fallbackStat) {
-        String path = e.getPath() != null ? e.getPath() : "";
-        String name = e.getName() != null ? e.getName() : "";
-
-        if (path.startsWith(EverythingLibraryClient.LIBRARY_PATH_MANGA)) {
-            String folder = path.length() > EverythingLibraryClient.LIBRARY_PATH_MANGA.length()
-                    ? path.substring(EverythingLibraryClient.LIBRARY_PATH_MANGA.length() + 1)
-                    : "";
-            Matcher m = MANGA_PREFIX_PATTERN.matcher(folder);
-            return normalizeWhitespace(m.replaceFirst(""));
-        }
-        else if (path.startsWith(EverythingLibraryClient.LIBRARY_PATH_ARIA2C)) {
-            if (fallbackStat != null) {
-                fallbackStat[1]++;
-            }
-            String base = ARIA_EXT_PATTERN.matcher(name).replaceAll("");
-            Matcher m = ARIA_VOL_PATTERN.matcher(base);
-            if (m.matches()) {
-                String title = m.group("title");
-                // Python版の .rstrip('_').rstrip() と同じ順序で除去する(意図的にこの順)
-                title = rstripChar(title, '_');
-                title = rstripWhitespace(title);
-                return normalizeWhitespace(title);
-            }
-            // 巻数表記にマッチしなかった場合は単体作品としてファイル名そのものを作品名にする
-            if (fallbackStat != null) {
-                fallbackStat[0]++;
-            }
-            return normalizeWhitespace(base);
-        }
-        else {
-            // 想定外のパス(通常は発生しない: /list はmanga/aria2cの2パスのみ問い合わせている)
-            if (fallbackStat != null) {
-                fallbackStat[2]++;
-            }
-            Logcat.w(Logcat.LOG_LEVEL_WARN, "resolveTitle: 想定外のパスです(manga/Aria2c_DL以外): " + path);
-            return normalizeWhitespace(name.isEmpty() ? path : name);
-        }
     }
 
     // ファイル名の表記ゆれ(連続する半角/全角スペースの個数違いなど)を軽く吸収するための正規化。
@@ -350,21 +306,5 @@ public class LibraryCache {
     // 巻の並びが崩れるのを防ぐ)。
     public static int compareVolumeName(String name1, String name2) {
         return DEF.compareFileName(normalizeWhitespace(name1), normalizeWhitespace(name2));
-    }
-
-    private static String rstripChar(String s, char c) {
-        int end = s.length();
-        while (end > 0 && s.charAt(end - 1) == c) {
-            end--;
-        }
-        return s.substring(0, end);
-    }
-
-    private static String rstripWhitespace(String s) {
-        int end = s.length();
-        while (end > 0 && Character.isWhitespace(s.charAt(end - 1))) {
-            end--;
-        }
-        return s.substring(0, end);
     }
 }

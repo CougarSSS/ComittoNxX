@@ -41,6 +41,7 @@ public class LibrarySyncClient {
         String name;
         long size;
         long date_modified;
+        String work_title;
     }
 
     private static boolean isConfigured(SharedPreferences sp) {
@@ -149,7 +150,7 @@ public class LibrarySyncClient {
                 if (item.name == null || item.name.isEmpty()) {
                     continue;
                 }
-                entries.add(new LibraryEntry(item.path != null ? item.path : "", item.name, item.size, item.date_modified));
+                entries.add(new LibraryEntry(item.path != null ? item.path : "", item.name, item.size, item.date_modified, item.work_title));
             }
             total = page.total;
             offset += page.results.size();
