@@ -52,8 +52,8 @@ import src.comitton.fileaccess.SmbFileAccess;
 import src.comitton.fileaccess.EverythingClient;
 import src.comitton.fileaccess.BookmarkSyncClient;
 import src.comitton.fileaccess.HistorySyncClient;
+import src.comitton.fileaccess.LibrarySyncClient;
 import src.comitton.fileaccess.ReadPositionSyncClient;
-import src.comitton.fileaccess.EverythingLibraryClient;
 import src.comitton.helpview.HelpActivity;
 import src.comitton.imageview.ImageManager;
 import src.comitton.imageview.TouchPanelView;
@@ -247,8 +247,6 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	// 広げるための仮想ファイルリスト。null以外の間はsearchNextFile()がこちらを優先する。
 	// 書庫管理タブ以外からの通常操作ではonItemClick()の先頭で毎回nullに戻す。
 	private ArrayList<FileData> mLibraryVirtualFileList;
-	// 初回一括インポート用の受け渡しファイル(開発者専用、adb pushで配置する想定)
-	private static final String LIBRARY_IMPORT_FILE = "/sdcard/Download/comittonxx_initial_cache_export.json";
 
 	// ダイアログ情報
 	private Information mInformation;
@@ -6534,18 +6532,16 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		refreshLibraryList();
 	}
 
-	// 書庫管理タブ先頭のダミー項目タップ時のメニュー(手動更新/タイトル検索/絞り込み解除/初回インポート)
+	// 書庫管理タブ先頭のダミー項目タップ時のメニュー
+	// (サーバー側スキャン起動/端末側取得/タイトル検索/絞り込み解除)
 	private void showLibraryOptionsDialog() {
 		Resources res = getResources();
 		final ArrayList<String> itemList = new ArrayList<String>();
-		itemList.add(res.getString(R.string.libraryMenuRefresh));
+		itemList.add(res.getString(R.string.libraryMenuRescan));
+		itemList.add(res.getString(R.string.libraryMenuPull));
 		itemList.add(res.getString(R.string.libraryMenuSearch));
 		if (mLibraryFilterText != null && !mLibraryFilterText.isEmpty()) {
 			itemList.add(res.getString(R.string.libraryMenuClearFilter));
-		}
-		final File importFile = new File(LIBRARY_IMPORT_FILE);
-		if (importFile.exists()) {
-			itemList.add(res.getString(R.string.libraryMenuImport));
 		}
 		final String[] items = itemList.toArray(new String[0]);
 
@@ -6554,8 +6550,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			public void onSelectItem(int item) {
 				String selected = items[item];
 				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: オプション選択=" + selected);
-				if (selected.equals(res.getString(R.string.libraryMenuRefresh))) {
-					refreshLibraryFromServer();
+				if (selected.equals(res.getString(R.string.libraryMenuRescan))) {
+					rescanLibraryOnServer();
+				}
+				else if (selected.equals(res.getString(R.string.libraryMenuPull))) {
+					pullLibraryFromServer();
 				}
 				else if (selected.equals(res.getString(R.string.libraryMenuSearch))) {
 					showLibrarySearchDialog();
@@ -6563,9 +6562,6 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				else if (selected.equals(res.getString(R.string.libraryMenuClearFilter))) {
 					mLibraryFilterText = "";
 					refreshLibraryList();
-				}
-				else if (selected.equals(res.getString(R.string.libraryMenuImport))) {
-					importLibrarySeedData(importFile.getAbsolutePath());
 				}
 			}
 
@@ -6602,10 +6598,20 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		mTextInputDialog.show();
 	}
 
-	// EverythingX /list へ問い合わせてローカルキャッシュを更新する(結果はHMSG_LIBRARY_RESULTで受信)
-	private void refreshLibraryFromServer() {
-		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 手動更新を開始します(EverythingLibraryClient.list)");
-		EverythingLibraryClient.list(mActivity, mHandler, mSharedPreferences);
+	// bookmark-sync-serverの/library/rescanでサーバー側の即時スキャンだけをキックする
+	// (取得は別操作。スキャンは数十秒〜数分かかるため、ここでは完了を待たない。
+	// 結果はHMSG_LIBRARYSYNC_RESCAN_RESULTで受信)。
+	private void rescanLibraryOnServer() {
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: サーバー側スキャンを開始します(LibrarySyncClient.rescanOnly)");
+		LibrarySyncClient.rescanOnly(mActivity, mHandler, mSharedPreferences);
+	}
+
+	// bookmark-sync-serverの/libraryへ問い合わせてローカルキャッシュを丸ごと更新する
+	// (結果はHMSG_LIBRARYSYNC_RESULTで受信)。サーバー側の最新化はrescanLibraryOnServer()で
+	// 別途行う想定(こちらはその時点でサーバーが持っているカタログを取得するだけ)。
+	private void pullLibraryFromServer() {
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 端末側取得を開始します(LibrarySyncClient.pullAll)");
+		LibrarySyncClient.pullAll(mActivity, mHandler, mSharedPreferences);
 	}
 
 	// 書庫管理タブの作品(またはドリルダウン中の巻)長押しメニュー。対象作品の存在確認を行う
@@ -6706,42 +6712,6 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 							mLibraryVirtualFileList = null;
 							refreshLibraryList();
 						}
-					}
-				});
-			}
-		}).start();
-	}
-
-	// 開発者専用: 一括インポート用JSON(adb pushで配置する想定)を読み込む
-	private void importLibrarySeedData(final String jsonFilePath) {
-		final Handler mainHandler = new Handler(Looper.getMainLooper());
-		new Thread(new Runnable() {
-			@Override
-			public void run() {
-				int logLevel = Logcat.LOG_LEVEL_WARN;
-				int added = 0;
-				boolean error = false;
-				try {
-					// サーバー側で大量のファイル名変更が行われた場合、merge()は追加・更新のみで
-					// 削除しないため旧ファイル名のエントリが残り続ける。この開発者専用の一括
-					// インポートは「マージ」ではなく「丸ごと入れ替え」として扱う。
-					LibraryCache.clearAll();
-					added = LibraryCache.importFromJsonFile(jsonFilePath);
-				}
-				catch (Exception e) {
-					Logcat.e(logLevel, "書庫管理の初回インポートに失敗しました.", e);
-					error = true;
-				}
-				final int addedCount = added;
-				final boolean hasError = error;
-				mainHandler.post(() -> {
-					if (hasError) {
-						Toast.makeText(mActivity, getResources().getString(R.string.libraryMenuImportError), Toast.LENGTH_LONG).show();
-						return;
-					}
-					Toast.makeText(mActivity, String.format(getResources().getString(R.string.librarySyncDone), addedCount), Toast.LENGTH_SHORT).show();
-					if (mListScreenView.getListType() == RecordList.TYPE_LIBRARY) {
-						refreshLibraryList();
 					}
 				});
 			}
@@ -8689,6 +8659,44 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				Toast.makeText(mActivity, String.format(getResources().getString(R.string.librarySyncDone), added), Toast.LENGTH_SHORT).show();
 				if (mListScreenView.getListType() == RecordList.TYPE_LIBRARY) {
 					refreshLibraryList();
+				}
+				return true;
+			}
+			case DEF.HMSG_LIBRARYSYNC_RESULT: {
+				// 書庫管理: bookmark-sync-server /library の全件取得結果を受信し、
+				// ローカルキャッシュを丸ごと置き換える(サーバー側が既に最新の完全なカタログのため、
+				// マージではなく置き換えでリネーム/削除も反映する)。
+				@SuppressWarnings("unchecked")
+				ArrayList<LibraryEntry> fetched = (ArrayList<LibraryEntry>) msg.obj;
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: HMSG_LIBRARYSYNC_RESULT受信. fetched=" + (fetched != null ? fetched.size() : 0) + "件");
+				if (fetched == null || fetched.isEmpty()) {
+					Toast.makeText(mActivity, getResources().getString(R.string.libraryMenuImportError), Toast.LENGTH_LONG).show();
+					return true;
+				}
+				LibraryCache.clearAll();
+				int added = LibraryCache.merge(fetched);
+				mLibraryVirtualFileList = null;
+				Toast.makeText(mActivity, String.format(getResources().getString(R.string.librarySyncDone), added), Toast.LENGTH_SHORT).show();
+				if (mListScreenView.getListType() == RecordList.TYPE_LIBRARY) {
+					refreshLibraryList();
+					// 更新後は最新順の先頭が見えるよう、スクロール位置を明示的に先頭へ戻す
+					mListScreenView.mLibraryListArea.setTopIndex(0, 0);
+				}
+				return true;
+			}
+			case DEF.HMSG_LIBRARYSYNC_RESCAN_RESULT: {
+				// 書庫管理: bookmark-sync-server /library/rescan の起動結果を受信する
+				// (完了は待たない。取得は別途「端末側を更新」で行う)。
+				int status = msg.arg1;
+				Resources res = getResources();
+				if (status == LibrarySyncClient.RESCAN_STATUS_TRIGGERED) {
+					Toast.makeText(mActivity, res.getString(R.string.libraryRescanTriggered), Toast.LENGTH_LONG).show();
+				}
+				else if (status == LibrarySyncClient.RESCAN_STATUS_COOLDOWN) {
+					Toast.makeText(mActivity, res.getString(R.string.libraryRescanCooldown), Toast.LENGTH_LONG).show();
+				}
+				else {
+					Toast.makeText(mActivity, res.getString(R.string.libraryRescanError), Toast.LENGTH_LONG).show();
 				}
 				return true;
 			}

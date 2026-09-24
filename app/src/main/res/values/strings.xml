@@ -572,10 +572,13 @@
     <string name="libraryTapToSearch">Tap to search Library titles</string>
     <string name="libraryVolumeCount">%1$d volume(s)</string>
     <string name="librarySyncDone">Library updated: %1$d new item(s)</string>
-    <string name="libraryMenuRefresh">Refresh from server</string>
+    <string name="libraryMenuRescan">Scan server now</string>
+    <string name="libraryMenuPull">Update from server</string>
+    <string name="libraryRescanTriggered">Server scan started. Use \"Update from server\" once it finishes.</string>
+    <string name="libraryRescanCooldown">A scan already ran recently. Use \"Update from server\" to fetch the current catalog.</string>
+    <string name="libraryRescanError">Could not start the server scan.</string>
     <string name="libraryMenuSearch">Search by title</string>
     <string name="libraryMenuClearFilter">Clear filter</string>
-    <string name="libraryMenuImport">Import initial data</string>
     <string name="libraryMenuImportError">Failed to import Library data</string>
     <string name="libraryMenuVerify">Check existence and remove missing volumes</string>
     <string name="libraryVerifyStart">Checking files on the server...</string>

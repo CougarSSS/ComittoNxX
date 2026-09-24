@@ -572,10 +572,13 @@
     <string name="libraryTapToSearch">タップして書庫管理を検索</string>
     <string name="libraryVolumeCount">%1$d巻</string>
     <string name="librarySyncDone">書庫一覧を更新しました: 新規%1$d件</string>
-    <string name="libraryMenuRefresh">サーバーから更新</string>
+    <string name="libraryMenuRescan">サーバー側を更新</string>
+    <string name="libraryMenuPull">端末側を更新</string>
+    <string name="libraryRescanTriggered">サーバー側のスキャンを開始しました。完了後に「端末側を更新」を実行してください。</string>
+    <string name="libraryRescanCooldown">直近でスキャン済みです。「端末側を更新」で現在のカタログを取得できます。</string>
+    <string name="libraryRescanError">サーバー側のスキャンを開始できませんでした。</string>
     <string name="libraryMenuSearch">タイトルで検索</string>
     <string name="libraryMenuClearFilter">絞り込みを解除</string>
-    <string name="libraryMenuImport">初期データを読み込む</string>
     <string name="libraryMenuImportError">書庫管理データの読み込みに失敗しました</string>
     <string name="libraryMenuVerify">存在確認して実在しない巻を削除</string>
     <string name="libraryVerifyStart">サーバー上のファイルを確認しています...</string>

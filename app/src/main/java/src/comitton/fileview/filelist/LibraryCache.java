@@ -1,13 +1,10 @@
 package src.comitton.fileview.filelist;
 
-import com.google.gson.Gson;
-
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -229,59 +226,6 @@ public class LibraryCache {
         sWorkListDirty = true;
         Logcat.w(logLevel, "merge: 受信" + newEntries.size() + "件 → 新規" + added + "件、更新" + updated + "件、マージ後合計" + current.size() + "件");
         return added;
-    }
-
-    /**
-     * 初回一括インポート用。EverythingLibraryClient.Responseと同じJSON形状
-     * ({"total_results":..., "results":[{"name","path","size","date_modified",...}, ...]})
-     * のファイルを読み込み、merge()と同じロジックで取り込む。
-     * 開発者専用の使い捨て機能のため、呼び出し口はUI未実装(現状は手動でこのメソッドを呼ぶ前提)。
-     * @return 新規追加件数
-     */
-    public static int importFromJsonFile(String jsonFilePath) throws IOException {
-        int logLevel = Logcat.LOG_LEVEL_WARN;
-        Logcat.w(logLevel, "importFromJsonFile開始: " + jsonFilePath);
-        String json;
-        try {
-            json = readWholeFile(jsonFilePath);
-        }
-        catch (IOException ex) {
-            Logcat.e(logLevel, "importFromJsonFileファイル読み込み失敗: " + jsonFilePath, ex);
-            throw ex;
-        }
-        EverythingLibraryClient.Response resp;
-        try {
-            Gson gson = new Gson();
-            resp = gson.fromJson(json, EverythingLibraryClient.Response.class);
-        }
-        catch (Exception ex) {
-            Logcat.e(logLevel, "importFromJsonFile JSONパース失敗: " + jsonFilePath, ex);
-            return 0;
-        }
-        if (resp == null || resp.results == null) {
-            Logcat.w(logLevel, "importFromJsonFile: results無し(0件)");
-            return 0;
-        }
-        ArrayList<LibraryEntry> entries = EverythingLibraryClient.toEntries(resp.results);
-        Logcat.w(logLevel, "importFromJsonFile: JSON内results=" + resp.results.size() + "件 → 変換後entries=" + entries.size() + "件");
-        int added = merge(entries);
-        Logcat.w(logLevel, "importFromJsonFile完了: 新規" + added + "件");
-        return added;
-    }
-
-    private static String readWholeFile(String path) throws IOException {
-        StringBuilder sb = new StringBuilder();
-        FileInputStream is = new FileInputStream(path);
-        InputStreamReader sr = new InputStreamReader(is, "UTF-8");
-        BufferedReader br = new BufferedReader(sr, 65536);
-        String line;
-        while ((line = br.readLine()) != null) {
-            sb.append(line);
-        }
-        br.close();
-        sr.close();
-        is.close();
-        return sb.toString();
     }
 
     /**
