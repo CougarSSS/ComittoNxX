@@ -6661,6 +6661,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				// ループ内で毎回ServerSelectを作り直すとSharedPreferences全読み込みの繰り返しで
 				// 重くなるため、この一覧の構築中は1つだけ作って使い回す。
 				ServerSelect servers = new ServerSelect(mSharedPreferences, this);
+				// 通常のファイル一覧/ビューアと同じ拡張子違いフォールバック(ZIP⇔RAR等)を
+				// 書庫管理タブでも適用するための事前インデックス(resolvePageKeyIndexed用)。
+				Map<String, String> pageKeyIndex = DEF.buildPageKeyIndex(mSharedPreferences);
 				for (LibraryEntry e : mLibraryDrilldownVolumes) {
 					RecordItem rd = new RecordItem();
 					rd.setType(RecordItem.TYPE_IMAGE);
@@ -6690,7 +6693,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						String ruser = servers.getUser(displayResolved.server);
 						String rpass = servers.getPass(displayResolved.server);
 						String fileUri = DEF.relativePath(mActivity, rootUri, displayResolved.dirPath, displayResolved.fileName);
-						String key = DEF.createUrl(fileUri, ruser, rpass);
+						String key = (FileSelectActivity.getResolvePageKey())
+								? DEF.resolvePageKeyIndexed(mSharedPreferences, fileUri, ruser, rpass, pageKeyIndex)
+								: DEF.createUrl(fileUri, ruser, rpass);
 						maxpage = mSharedPreferences.getInt(key + "#maxpage", DEF.PAGENUMBER_NONE);
 						state = mSharedPreferences.getInt(key, DEF.PAGENUMBER_UNREAD);
 					}
