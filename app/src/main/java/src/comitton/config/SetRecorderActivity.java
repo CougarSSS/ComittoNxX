@@ -222,39 +222,18 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		short[] listtype = new short[listnum + 1];
 		int index = 1;
 		listtype[0] = RecordList.TYPE_FILELIST;
-		// 表示する場合
-		if (listflag[0]) {
-			listtype[index] = RecordList.TYPE_DIRECTORY;
-			index++;
+		// 表示する場合(listflag[i]のiはそのままRecordList.TYPE_*の値と対応する)
+		for (int i = 0 ; i < listflag.length ; i ++) {
+			if (listflag[i]) {
+				listtype[index] = (short) i;
+				index++;
+			}
 		}
-		if (listflag[1]) {
-			listtype[index] = RecordList.TYPE_SERVER;
-			index++;
-		}
-		if (listflag[2]) {
-			listtype[index] = RecordList.TYPE_BOOKMARK;
-			index++;
-		}
-		if (FileSelectActivity.getEverythingSet()) {
+		if (showSearch && FileSelectActivity.getEverythingSet()) {
 			listtype[index] = RecordList.TYPE_SEARCH;
 			index++;
 		}
-		if (FileSelectActivity.getLibrarySyncSet()) {
-			listtype[index] = RecordList.TYPE_LIBRARY;
-			index++;
-		}
-		if (listflag[3]) {
-			listtype[index] = RecordList.TYPE_HISTORY;
-			index++;
-		}
-		if (listflag[4]) {
-			listtype[index] = RecordList.TYPE_MENU;
-		}
-		if (showSearch) {
-			listtype[index] = RecordList.TYPE_SEARCH;
-			index++;
-		}
-		if (showLibrary) {
+		if (showLibrary && FileSelectActivity.getLibrarySyncSet()) {
 			listtype[index] = RecordList.TYPE_LIBRARY;
 			index++;
 		}
