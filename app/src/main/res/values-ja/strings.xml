@@ -74,6 +74,8 @@
     <string name="readxref">XREF読込中</string>
     <string name="readpage">Page構造読込中</string>
     <string name="download">ダウンロード中</string>
+    <string name="sortlist">リストのソート中</string>
+    <string name="searchfile">ファイルの検索中</string>
     <string name="imageParsing">画像解析中</string>
     <string name="loaderr">画像の読込みに失敗しました</string>
     <string name="localStrage">ローカル</string>
@@ -315,6 +317,8 @@
     <string name="addBmOK">OK</string>
     <string name="addBmCancel">キャンセル</string>
     <string name="dlTitle">ダウンロード</string>
+    <string name="sortListTitle">リストのソート</string>
+    <string name="searchTitle">ファイルの検索</string>
     <string name="rmTitle">削除</string>
     <string name="exportLabel">出力ファイル名</string>
     <string name="opeTitle">操作選択</string>
@@ -559,6 +563,7 @@
     <string name="toolbar04">登録</string>
     <string name="toolbar05">終了</string>
     <string name="toolbar06">同期</string>
+    <string name="toolbar07">Web共有</string>
     <string name="readPositionSyncDone">%1$d件の既読位置を同期しました</string>
     <string name="readPositionSyncUnavailable">栞同期の設定が未設定か、ローカルのファイル一覧です</string>
     <string name="listname00">ファイル</string>
@@ -643,6 +648,9 @@
     <string name="selectOrEnterFile">ファイルを選択または入力してください.</string>
     <string name="SaveConfig">設定を保存しました.</string>
     <string name="LoadConfig">設定ファイルを適用しました.</string>
+    <string name="SaveServerCode">ローカルフォルダに保存しました.</string>
+    <string name="SaveErrorServerCode">保存に失敗しました.</string>
+    <string name="LoadErrorServerCode">読み込みに失敗しました.</string>
     <string name="FileNotExist">ファイルが存在しません.</string>
 
     <string name="fontdlMsg">フォントをダウンロードしてテキストファイルの表示に使用します。\n複数回ダウンロードを選択した場合もダウンロードは実行し、既存ファイルが上書きされます。</string>
@@ -738,6 +746,7 @@
     <string name="ToolbarPinchScaleUp">ズームイン</string>
     <string name="ToolbarPinchScaleDown">ズームアウト</string>
     <string name="ToolbarExitViewer">ビューアの終了</string>
+    <string name="ToolbarReload">画像の再読込み</string>
 
     <string name="Toolbarpicsize00">元画像サイズ(テキストビュワーのみ)</string>
     <string name="Toolbarpicsize01">元画像サイズの2倍(テキストビュワーのみ)</string>
@@ -865,6 +874,7 @@
     <string name="serverTypeSMB">SMB</string>
     <string name="serverTypeSAF">ストレージ アクセス フレームワーク</string>
     <string name="serverTypePicker">ファイル ピッカー</string>
+    <string name="serverTypeWebDAV">WebDAV</string>
     <string name="SafChooseTitle">フォルダを選択してください.</string>
     <string name="permissionDenied">権限がありません.</string>
     <string name="noResponseProvider">コンテンツプロバイダからの応答がありません.</string>
@@ -1004,6 +1014,7 @@
     <string name="horizontalfloatingicon">横の位置(%)</string>
     <string name="verticalfloatingicon">縦の位置(%)</string>
     <string name="transparencyfloatingicon">背景の透明度(%)</string>
+    <string name="enablebargrip">グリップ(ドラッグハンドル)を有効</string>
 
     <string name="floatingicondir00">縦方向</string>
     <string name="floatingicondir01">横方向</string>
@@ -1124,4 +1135,47 @@
     <string name="tablayout01">画面下側</string>
     <string name="initbutton">初期化</string>
 
+    <string name="ExitImageViewer">イメージビューアの終了</string>
+    <string name="ExitImageViewerEnding">終了中...</string>
+
+　　<string name="SetValue">\n設定値: </string>
+    <string name="BookmarkSyncHost">栞同期サーバーのIPアドレス</string>
+    <string name="BookmarkSyncPort">栞同期サーバーのポート番号</string>
+    <string name="BookmarkSyncUser">HTTP認証用ユーザー名(任意)</string>
+    <string name="BookmarkSyncPass">HTTP認証用パスワード(任意)</string>
+
+    <string name="EverythingHost">EverythingサーバーのIPアドレス</string>
+    <string name="EverythingPort">EverythingのHTTP APIのポート番号</string>
+    <string name="EverythingUser">HTTP認証用ユーザー名(任意)</string>
+    <string name="EverythingPass">HTTP認証用パスワード(任意)</string>
+    <string name="EverythingReplaceFrom">Everythingサーバー上で置換対象となるローカルパスのプレフィックス(例: /srv/share/)</string>
+    <string name="EverythingReplaceTo">SMBパスのプレフィックス(例: smb://192.168.1.10/share/)</string>
+
+    <string name="ValidIPaddress">有効なIPアドレスを入力してください(例: 192.168.1.1)</string>
+    <string name="ValidPortaddress">ポート番号は1024～65535の範囲で入力してください</string>
+    <string name="ValidDirectory">有効なディレクトリを選択してください</string>
+    <string name="ValidFilename">有効なファイル名を入力してください</string>
+    <string name="ReturnStorageList">[ストレージ一覧へ戻る]</string>
+    <string name="StorageSelection">ストレージ選択</string>
+    <string name="InternalStorage">内蔵ストレージ</string>
+    <string name="ExternalSDcard">外部SDカード</string>
+    <string name="SelectDirectory">このディレクトリを選択</string>
+    <string name="StartWebServer">バックグラウンドでWeb共有を開始しました</string>
+    <string name="StopWebServer">Web共有を停止しました</string>
+    <string name="SelectedPath">選択されたディレクトリパス: </string>
+    <string name="StartService">共有を開始</string>
+    <string name="StopService">共有を停止</string>
+    <string name="IPaddrtess">IPアドレス : </string>
+    <string name="PortNumber">ポート番号 : </string>
+    <string name="inoperation">共有中</string>
+    <string name="Stopped">停止中</string>
+    <string name="notificationWebServerTitle">ComittoNxX Web共有サービス</string>
+    <string name="notificationWebServerText">Web共有中です</string>
+    <string name="notificationChannel">Web Share Service Channel</string>
+    <string name="notificationWebServer">バックグラウンドでWeb共有中</string>
+    <string name="WebShareDialogTitle">Web共有の開始・停止</string>
+
+    <string name="webserverauth00">無し</string>
+    <string name="webserverauth01">Basic認証</string>
+    <string name="webserverauth02">Digest認証</string>
 </resources>

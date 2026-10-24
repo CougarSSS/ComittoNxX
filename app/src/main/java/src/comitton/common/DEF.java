@@ -36,6 +36,7 @@ import androidx.core.app.ActivityCompat;
 import jp.dip.muracoro.comittonx.BuildConfig;
 import jp.dip.muracoro.comittonx.R;
 import src.comitton.fileaccess.FileAccess;
+import src.comitton.fileview.FileSelectActivity;
 import src.comitton.fileview.data.FileData;
 
 import org.mozilla.universalchardet.UniversalDetector;
@@ -68,6 +69,7 @@ public class DEF {
 	public static final int MESSAGE_FILE_RENAME = 1015;
 	public static final int MESSAGE_MOVE_PATH_EROOR = 1016;
 	public static final int MESSAGE_RESETLOCAL = 1017;
+	public static final int MESSAGE_WEBSHAREICON = 1018;
 
 	public static final int MESSAGE_IMAGE = 1;
 	public static final int MESSAGE_TEXT = 2;
@@ -147,6 +149,7 @@ public class DEF {
 	public static final int HMSG_EVENT_ZOOMLEVELDECISION = 226;
 	public static final int HMSG_EVENT_ZOOMLEVELUNDO = 227;
 	public static final int HMSG_EVENT_ZOOMVIEWOFF = 228;
+	public static final int HMSG_EVENT_RELOAD = 229;
 
 	public static final int INTERVAL_DEFAULT = 50;	// Milliseconds
 	public static final int INTERVAL_EFFECT = 1;	// Milliseconds
@@ -246,6 +249,7 @@ public class DEF {
 	public static final int MENU_ZOOMLEVEL_SETTING = Menu.FIRST + 81;
 	public static final int MENU_HORIZONTIALWRITING = Menu.FIRST + 82;
 	public static final int MENU_EXT_FILTER = Menu.FIRST + 83;
+	public static final int MENU_RELOAD = Menu.FIRST + 84;
 	// ブックマークおよび目次でページ番号の上限に達してしまうため増やしてみた
 	public static final int MENU_BOOKMARK = Menu.FIRST + 100000;
 	public static final int MENU_CHAPTER = Menu.FIRST + 200000;
@@ -303,6 +307,14 @@ public class DEF {
 	public static final int TOOLBAR_PROFILE8 = 1038;
 	public static final int TOOLBAR_PROFILE9 = 1039;
 	public static final int TOOLBAR_PROFILE10 = 1040;
+	public static final int TOOLBAR_LEFTSCROLL = 1041;
+	public static final int TOOLBAR_RIGHTSCROLL = 1042;
+	public static final int TOOLBAR_GLASSPLUS = 1043;
+	public static final int TOOLBAR_GLASSMINUS = 1044;
+	public static final int TOOLBAR_ZOOMRESET = 1045;
+	public static final int TOOLBAR_PLAYPAUSE = 1046;
+	public static final int TOOLBAR_NAVIBACK = 1047;
+	public static final int TOOLBAR_RELOAD = 1048;
 	public static final int TOOLBAR_DISMISS = 1100;
 
 	public static final int TOOLBAR_EVENT_LEFTMOST = 0;
@@ -343,6 +355,14 @@ public class DEF {
 	public static final int TOOLBAR_EVENT_PROFILE8 = 35;
 	public static final int TOOLBAR_EVENT_PROFILE9 = 36;
 	public static final int TOOLBAR_EVENT_PROFILE10 = 37;
+	public static final int TOOLBAR_EVENT_LEFTSCROLL = 38;
+	public static final int TOOLBAR_EVENT_RIGHTSCROLL = 39;
+	public static final int TOOLBAR_EVENT_GLASSPLUS = 40;
+	public static final int TOOLBAR_EVENT_GLASSMINUS = 41;
+	public static final int TOOLBAR_EVENT_ZOOMRESET = 42;
+	public static final int TOOLBAR_EVENT_PLAYPAUSE = 43;
+	public static final int TOOLBAR_EVENT_NAVIBACK = 44;
+	public static final int TOOLBAR_EVENT_RELOAD = 45;
 
 	public static final int SHARE_SINGLE = 2001;
 	public static final int SHARE_LR = 2002;
@@ -388,6 +408,14 @@ public class DEF {
 	public static final int FLOATING_PROFILE9 = 1039;
 	public static final int FLOATING_PROFILE10 = 1040;
 	public static final int FLOATING_SLIDER = 1041;
+	public static final int FLOATING_LEFTSCROLL = 1042;
+	public static final int FLOATING_RIGHTSCROLL = 1043;
+	public static final int FLOATING_GLASSPLUS = 1044;
+	public static final int FLOATING_GLASSMINUS = 1045;
+	public static final int FLOATING_ZOOMRESET = 1046;
+	public static final int FLOATING_PLAYPAUSE = 1047;
+	public static final int FLOATING_NAVIBACK = 1048;
+	public static final int FLOATING_RELOAD = 1049;
 
 	public static final int READ_REQUEST_CODE = 42;
 	public static final int WRITE_REQUEST_CODE = 43;
@@ -415,6 +443,7 @@ public class DEF {
 	public static final int ACCESS_TYPE_SMB = 0;
 	public static final int ACCESS_TYPE_SAF = 1;
 	public static final int ACCESS_TYPE_PICKER = 2;
+	public static final int ACCESS_TYPE_WEBDAV = 3;
 
 	public static final int VIEWPT_RIGHTTOP = 0;
 	public static final int VIEWPT_LEFTTOP = 1;
@@ -437,8 +466,9 @@ public class DEF {
 	public static final int TOOLBAR_MARKER = 3;
 	//	public static final int TOOLBAR_SERVER = 4;
 	public static final int TOOLBAR_UPDATE_READPOSITION = 4;
-	public static final int TOOLBAR_ADDDIR = 5;
-	public static final int TOOLBAR_EXIT = 6;
+	public static final int TOOLBAR_WEB_SHARING = 5;
+	public static final int TOOLBAR_ADDDIR = 6;
+	public static final int TOOLBAR_EXIT = 7;
 
 	// ページめくり表示方向
 	public static final int PAGEWAY_RIGHT = 0; // 右から左
@@ -650,6 +680,7 @@ public class DEF {
 	public static final String KEY_READPROGRESSBARPOSITION = "ReadProgressbarPosition";
 	public static final String KEY_PROGRESSBARMODE = "ProgressBarMode";
 	public static final String KEY_READPROGRESSBARWIDTH = "ReadProgressbarWidth";
+	public static final String KEY_SKIPSORTFILELIST = "SkipSortFilelist";
 
 	public static final String KEY_NOISESCRL = "NoiseScrlSp";
 	public static final String KEY_NOISEUNDER = "NoiseUnder";
@@ -743,6 +774,7 @@ public class DEF {
 	public static final String KEY_SORTCHGPAGE = "SoftChgPage";
 	public static final String KEY_FILELISTCACHEOFF = "FileListCacheOff";
 	public static final String KEY_FILELISTFASTREADOFF = "FileListFastReadOff";
+	public static final String KEY_EVERYTHINGBOOKMARKSYNCSET =  "EverythingBookmarkSyncSet";
 	public static final String KEY_BACKGROUNDPAUSE = "BackgroundPause";
 	public static final String KEY_ANIMATIONENABLE = "AnimationEnable";
 	public static final String KEY_ANIMATIONSCAN = "AnimationScan";
@@ -905,6 +937,8 @@ public class DEF {
 	public static final String KEY_MEMSIZE = "MemSize";
 	public static final String KEY_MEMNEXT = "MemNext";
 	public static final String KEY_MEMPREV = "MemPrev";
+	public static final String KEY_MEMLIMIT = "MemLimit";
+	public static final String KEY_MEMLIMITENABLE = "MemLimitEnable";
 	public static final String KEY_MEMCACHESTARTTHRESHOLD = "MemCacheStartThreshold";
 
 	public static final String KEY_PinchScale = "PinchScale";
@@ -921,6 +955,8 @@ public class DEF {
 	public static final String KEY_SMBRETRYMODE = "SmbRetryMode";
 	public static final String KEY_MARKERFILTERON = "MarkerFilterOn";
 	public static final String KEY_MARKERDIRON = "MarkerDirOn";
+	public static final String KEY_MARKERFILEONLYON = "MarkerFileOnlyOn";
+	public static final String KEY_MARKERFOLDERONLYON = "MarkerFolderOnlyOn";
 	public static final String KEY_ARCHIVECHECKMANUALMODE = "ArchiveCheckManualMode";
 	public static final String KEY_SKIPGETTHUMBNAIL = "SkipGetThumbnail";
 	public static final String KEY_SKIPZIPLIB = "SkipZipLib";
@@ -933,6 +969,7 @@ public class DEF {
 	public static final String KEY_SMBCALLBACKMODE = "SMBCallbackMode";
 	public static final String KEY_OPENIMAGEHTMLFILE = "OpenImageHtmlFile";
 	public static final String KEY_OPENIMAGETEXTFILE = "OpenImageTextFile";
+	public static final String KEY_BACKGROUNDDOWNLOADIMAGEFILE = "BackgroundDownloadImageFile";
 	public static final String KEY_TABMODE = "TabMode";
 	public static final String KEY_TABSTYLE = "TabSytle";
 	public static final String KEY_TABLAYOUT = "TabLayout";
@@ -946,6 +983,8 @@ public class DEF {
 	public static final String KEY_TABRESTORE = "TabRestore";
 
 	public static final String KEY_CANCELFILELISTDIALOG = "CancelFileListDialog";
+	public static final String KEY_RESOLVEPAGEKEY = "ResolvePageKey";
+	public static final String KEY_LOADWITHFALLBACK = "LoadWithFallback";
 
 	public static final String KEY_EVERYTHING_HOST = "EverythingHost";
 	public static final String KEY_EVERYTHING_PORT = "EverythingPort";
@@ -953,6 +992,14 @@ public class DEF {
 	public static final String KEY_EVERYTHING_PASS = "EverythingPass";
 	public static final String KEY_EVERYTHING_REPLACE_FROM = "EverythingReplaceFrom";
 	public static final String KEY_EVERYTHING_REPLACE_TO = "EverythingReplaceTo";
+	public static final String KEY_EVERYTHING_ENABLE = "EverythingEnable";
+
+	public static final String DEFAULT_EVERYTHING_HOST = "192.168.1.1";
+	public static final String DEFAULT_EVERYTHING_PORT = "8080";
+	public static final String DEFAULT_EVERYTHING_USER = "";
+	public static final String DEFAULT_EVERYTHING_PASS = "";
+	public static final String DEFAULT_EVERYTHING_REPLACE_FROM = "";
+	public static final String DEFAULT_EVERYTHING_REPLACE_TO = "";
 
 	public static final int HMSG_EVERYTHING_RESULT = 33;
 	public static final int TOOLBAR_EVERYTHING = 1041;
@@ -962,6 +1009,39 @@ public class DEF {
 	public static final String KEY_BOOKMARKSYNC_PORT = "BookmarkSyncPort";
 	public static final String KEY_BOOKMARKSYNC_USER = "BookmarkSyncUser";
 	public static final String KEY_BOOKMARKSYNC_PASS = "BookmarkSyncPass";
+	public static final String KEY_DOWNLOADSOURCECODE = "download_source_code";
+	public static final String KEY_BOOKMARKSYNC_ENABLE = "BookmarkSyncEnable";
+	public static final String KEY_READPOSITIONSYNC_ENABLE = "ReadPositionSyncEnable";
+	public static final String KEY_HISTORYSYNC_ENABLE = "HistorySyncEnable";
+	public static final String KEY_LIBRARYSYNC_ENABLE = "LibrarySyncEnable";
+
+	public static final String DEFAULT_BOOKMARKSYNC_HOST = "192.168.1.1";
+	public static final String DEFAULT_BOOKMARKSYNC_PORT = "8081";
+	public static final String DEFAULT_BOOKMARKSYNC_USER = "";
+	public static final String DEFAULT_BOOKMARKSYNC_PASS = "";
+
+	public static final String SERVER_SAMPLE_CODE = "server.py";
+
+	public static final String KEY_WEBSERVER_PORT = "WebServerPort";
+	public static final String KEY_WEBSERVER_DIRECTORY = "WebServerDirectory";
+	public static final String KEY_WEBSERVER_START = "WebServerStart";
+	public static final String KEY_WEBSERVER_BULKDOWNLOAD = "BulkDownload";
+	public static final String KEY_WEBSERVER_POPUPIMAGE = "PopupImage";
+	public static final String KEY_WEBSERVER_ICON = "WebServerIcon";
+	public static final String KEY_WEBSERVER_TLS =  "WebServerTls";
+	public static final String KEY_WEBSERVER_AUTH =  "WebServerAuth";
+	public static final String KEY_WEBSERVER_USER =  "WebServerUser";
+	public static final String KEY_WEBSERVER_PASSWORD =  "WebServerPass";
+	public static final String KEY_WEBSERVER_READONLY =  "WebServerReadonly";
+
+	public static final String DEFAULT_WEBSERVER_PORT = "8080";
+	public static final String DEFAULT_WEBSERVER_BULKDOWNLOAD = "archive";
+	public static final String DEFAULT_WEBSERVER_USER = "";
+	public static final String DEFAULT_WEBSERVER_PASS = "";
+
+	public static final int WEBSERVER_AUTH_NONE = 0;
+	public static final int WEBSERVER_AUTH_BASIC = 1;
+	public static final int WEBSERVER_AUTH_DIGEST = 2;
 
 	public static final int HMSG_BOOKMARKSYNC_RESULT = 34;
 	public static final int HMSG_READPOSITION_PULL_RESULT = 35;
@@ -981,6 +1061,8 @@ public class DEF {
 	public static final String KEY_FLOATINGICONVIRTICAL = "FloatingIconVertical";
 	public static final String KEY_FLOATINGICONTRANSPARENCY = "FloatingIconTransParency";
 	public static final String KEY_FLOATINGICONENABLE = "FloatingIconEnable";
+
+	public static final String KEY_FLOATINGICONBARGRIP = "FloatingIconBarGrip";
 
 	// プロファイル設定
 	public static final String KEY_PROFILE_WORD_01 = "Profile1";
@@ -1665,6 +1747,7 @@ public class DEF {
 	public static final int DEFAULT_MEMSIZE = 18; // キャッシュサイズ:200MByte
 	public static final int DEFAULT_MEMNEXT = 16; // キャッシュ前方:32ページ
 	public static final int DEFAULT_MEMPREV = 8; // キャッシュ後方:16ページ
+	public static final int DEFAULT_MEMLIMIT = 16; // キャッシュ前方:32ページ
 	public static final String DEFAULT_MEMCACHE = "0"; // 自動
 	public static final int DEFAULT_NOISESCRL = 1; // 20ドット
 	public static final int DEFAULT_NOISEUNDER = 8; // 800
@@ -1805,6 +1888,7 @@ public class DEF {
 	public static final int MAX_MEMSIZE = 198; // 2000MByte
 	public static final int MAX_MEMNEXT = 100; // 200ページ
 	public static final int MAX_MEMPREV = 100; // 200ページ
+	public static final int MAX_MEMLIMIT = 100; // 200ページ
 	public static final int MAX_NOISESCRL = 39; // 200ドット
 	public static final int MAX_NOISEUNDER = 50; // 5000
 	public static final int MAX_NOISEOVER = 50; // 5000
@@ -4626,7 +4710,7 @@ public class DEF {
 				// SMB上のファイルの既読位置キャッシュ(createUrlの出力)。
 				// 既読位置サーバー同期(ReadPositionSyncClient)導入により、
 				// SMB上のファイルの既読位置はサーバー側が正となるため、端末間で持ち回る設定には含めない。
-				return false;
+				if (FileSelectActivity.getBookmarkSyncSet()) return false;
 			} else {
 				return false;
 			}
@@ -4720,13 +4804,14 @@ public class DEF {
 		if (url.length() <= 6) {
 			return url;
 		}
-		if (!url.startsWith("smb://") || user == null || user.isEmpty()) {
+		if (!url.startsWith("smb://") && !url.startsWith("http://") && !url.startsWith("https://") || user == null || user.isEmpty()) {
 			return url;
 		}
 		// サーバ名
 		String ret = "";
 		try {
-			ret = "smb://" + URLEncoder.encode(user, "UTF-8");
+			String host = (url.startsWith("smb://")) ? "smb://" : "http://";
+			ret = host + URLEncoder.encode(user, "UTF-8");
 			if (pass != null && !pass.isEmpty()) {
 				ret += ":" + URLEncoder.encode(pass, "UTF-8");
 			}
@@ -4896,6 +4981,7 @@ public class DEF {
 		String found = index.get(rootOfUrl(exactKey) + "\u0000" + targetBase);
 		return found != null ? found : exactKey;
 	}
+
 
 
 	public static boolean CHAR_DETECT = true;

@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" >
+    <src.comitton.config.ButtonPreferenceCategory
+        android:key="webserver_category"
+        android:title="Web Sharing Settings"
+        android:layout="@layout/custom_preference_category">
+        <Preference
+            android:key="status_info"
+            android:title="Current status"
+            android:summary="dummy"
+            android:selectable="false"
+            android:layout="@layout/preference_with_divider" />
+        <src.comitton.config.DownloadPreference
+            android:key="download_source_code"
+            android:title="Starting the web sharing"
+            android:summary="Start and stop Web sharing." />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="Start/Stop Web Sharing"
+            android:summary="Check this box to enable Web Sharing at startup."
+            android:title="Enable Web Sharing at startup" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="WebServerIcon"
+            android:summary="Check this box if you want to display the icon for starting or stopping web sharing."
+            android:title="Display icons for starting and stopping web sharing" />
+        <EditTextPreference
+            android:key="WebServerPort"
+            android:defaultValue="8080"
+            android:title="Port number"
+            android:summary="Web sharing port number"
+            android:dialogTitle="Port number" />
+        <Preference
+            android:key="pref_dir_selector"
+            android:title="Select Initial Folder for Web Sharing"
+            android:summary="No initial folder has been selected." />
+        <EditTextPreference
+            android:key="BulkDownload"
+            android:defaultValue="archive"
+            android:title="File name when downloading the selection as a ZIP archive"
+            android:summary="archive"
+            android:dialogTitle="Enter the filename after ZIP compression." />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="PopupImage"
+            android:summary="Check this box if you want to view the contents of the image file."
+            android:title="Display a pop-up when a file is clicked or tapped" />
+        <ListPreference
+            android:defaultValue="0"
+            android:dialogTitle="Authentication mode"
+            android:entries="@array/webserverauth_name_list"
+            android:entryValues="@array/webserverauth_value_list"
+            android:key="WebServerAuth"
+            android:summary="dummy"
+            android:title="Authentication mode" />
+        <EditTextPreference
+            android:key="WebServerUser"
+            android:title="Username"
+            android:summary="Username for authentication"
+            android:dialogTitle="Username" />
+        <EditTextPreference
+            android:key="WebServerPass"
+            android:title="Password"
+            android:password="true"
+            android:summary="Password for authentication"
+            android:dialogTitle="Password" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="WebServerTls"
+            android:summary="Check this box to dynamically generate a self-signed certificate and enable TLS (HTTPS)."
+            android:title="Enable TLS (HTTPS) using a self-signed certificate" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="WebServerReadonly"
+            android:summary="Check this box to enable read-only mode."
+            android:title="Enable read-only mode" />
+    </src.comitton.config.ButtonPreferenceCategory>
+</PreferenceScreen>

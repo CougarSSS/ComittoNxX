@@ -145,7 +145,7 @@
         </PreferenceScreen>
         <PreferenceScreen
             android:key="BookmarkSyncSet"
-            android:title="栞同期の設定"
+            android:title="栞(ブックマーク)同期の設定"
             android:summary="複数端末間で栞を共有するための接続パラメータを設定する" >
             <intent
                 android:targetClass="src.comitton.config.SetBookmarkSyncActivity"
@@ -165,6 +165,14 @@
             android:summary="Webview画面のパラメータを設定する" >
             <intent
                 android:targetClass="src.comitton.config.SetWebViewActivity"
+                android:targetPackage="@string/application_id" />
+        </PreferenceScreen>
+        <PreferenceScreen
+            android:key="WebServerSet"
+            android:title="Web共有の設定"
+            android:summary="Web共有のパラメータを設定する" >
+            <intent
+                android:targetClass="src.comitton.config.SetWebServerActivity"
                 android:targetPackage="@string/application_id" />
         </PreferenceScreen>
     </PreferenceCategory>

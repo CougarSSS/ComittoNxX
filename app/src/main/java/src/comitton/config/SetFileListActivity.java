@@ -5,6 +5,7 @@ import src.comitton.config.seekbar.FontSubSeekbar;
 import src.comitton.config.seekbar.FontTileSeekbar;
 import src.comitton.config.seekbar.FontTitleSeekbar;
 import src.comitton.config.seekbar.ItemMarginSeekbar;
+import src.comitton.config.seekbar.LimitDownloadImageSeekbar;
 import src.comitton.config.seekbar.ListThumbSeekbar;
 import src.comitton.config.seekbar.MenuLongTapSeekbar;
 import src.comitton.config.seekbar.TabSeekbar;
@@ -76,6 +77,9 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 	private CheckBoxPreference mTabRestore;
 	private ListPreference mTabStyle;
 	private ListPreference mTabLayout;
+
+	private LimitDownloadImageSeekbar mMemLimit;
+	private CheckBoxPreference mMemLimitEnable;
 
 	private boolean mNotice = false;
 	private boolean mImmEnable = false;
@@ -226,6 +230,8 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		mTabStyle = (ListPreference)getPreferenceScreen().findPreference(DEF.KEY_TABSTYLE);
 		mTabLayout = (ListPreference)getPreferenceScreen().findPreference(DEF.KEY_TABLAYOUT);
 		mTabRestore = (CheckBoxPreference) findPreference(DEF.KEY_TABRESTORE);
+		mMemLimit  = (LimitDownloadImageSeekbar)getPreferenceScreen().findPreference(DEF.KEY_MEMLIMIT);
+		mMemLimitEnable = (CheckBoxPreference) findPreference(DEF.KEY_MEMLIMITENABLE);
 
 		if (!getThumbnailGrid(sharedPreferences)) {
 			mListThumbRatioSeek.setEnabled(false);
@@ -239,6 +245,10 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 			mTabStyle.setEnabled(false);
 			mTabLayout.setEnabled(false);
 			mTabRestore.setEnabled(false);
+		}
+
+		if (!getMemLimitEnable(sharedPreferences)) {
+			mMemLimit.setEnabled(false);
 		}
 
 		mThumbnailGrid.setOnPreferenceChangeListener(new android.preference.Preference.OnPreferenceChangeListener() {
@@ -266,6 +276,17 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 				mTabRestore.setEnabled(isChecked);
 				// 親のActivityを再生成させる
 				FileSelectActivity.setChangeTheme();
+				// trueを返すと設定値が保存される
+				return true;
+			}
+		});
+
+		mMemLimitEnable.setOnPreferenceChangeListener(new android.preference.Preference.OnPreferenceChangeListener() {
+			@Override
+			public boolean onPreferenceChange(android.preference.Preference preference, Object newValue) {
+				// newValue には新しいチェック状態(Boolean)が入ってくる
+				boolean isChecked = (Boolean) newValue;
+				mMemLimit.setEnabled(isChecked);
 				// trueを返すと設定値が保存される
 				return true;
 			}
@@ -346,6 +367,8 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 				ed.putBoolean(DEF.KEY_EXPANDTEXTENABLE, false);
 				ed.putBoolean(DEF.KEY_MARKERFILTERON, false);
 				ed.putBoolean(DEF.KEY_MARKERDIRON, false);
+				ed.putBoolean(DEF.KEY_MARKERFILEONLYON, false);
+				ed.putBoolean(DEF.KEY_MARKERFOLDERONLYON, false);
 				ed.putBoolean(DEF.KEY_ARCHIVECHECKMANUALMODE, false);
 				ed.putBoolean(DEF.KEY_SKIPGETTHUMBNAIL, false);
 				ed.putBoolean(DEF.KEY_SKIPZIPLIB, false);
@@ -357,16 +380,25 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 				ed.putBoolean(DEF.KEY_AOZORATEXTFILE, false);
 				ed.putBoolean(DEF.KEY_OPENIMAGEHTMLFILE, false);
 				ed.putBoolean(DEF.KEY_OPENIMAGETEXTFILE, false);
+				ed.putBoolean(DEF.KEY_BACKGROUNDDOWNLOADIMAGEFILE, false);
 				ed.putBoolean(DEF.KEY_TABMODE, false);
 				ed.putString(DEF.KEY_TABSTYLE, "0");
 				ed.putInt(DEF.KEY_TABSEEK, DEF.DEFAULT_TABSEEK);
 				ed.putString(DEF.KEY_TABLAYOUT, "0");
 				ed.putBoolean(DEF.KEY_TABRESTORE, false);
 				ed.putBoolean(DEF.KEY_CANCELFILELISTDIALOG, false);
+				ed.putBoolean(DEF.KEY_SKIPSORTFILELIST, false);
+				ed.putBoolean(DEF.KEY_EVERYTHINGBOOKMARKSYNCSET, false);
+				ed.putBoolean(DEF.KEY_RESOLVEPAGEKEY, false);
+				ed.putBoolean(DEF.KEY_LOADWITHFALLBACK, false);
+				ed.putBoolean(DEF.KEY_MEMLIMITENABLE, false);
+				ed.putInt(DEF.KEY_MEMLIMIT, DEF.DEFAULT_MEMLIMIT);
 				ed.apply();
 				// アクティビティを再起動
 				ListViewScrollUtils.restartActivityWithPosition(this, getListView());
 			});
+			// 画面の描画準備が終わった直後に画面内の全タイトル部品を探して制限を解除する
+			PreferenceHelper.enableMultilineTitles(getWindow().getDecorView());
 		}
 	}
 
@@ -408,6 +440,7 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		mTabSeek.setSummary(getTabSeekSummary(sharedPreferences));
 		mTabStyle.setSummary(getTabStyleSummary(sharedPreferences));
 		mTabLayout.setSummary(getTabLayoutSummary(sharedPreferences));
+		mMemLimit.setSummary(getMemLimitSummary(sharedPreferences));
 		SetCommonActivity.SetOrientationEventListenerEnable(sharedPreferences);
 }
 
@@ -557,6 +590,10 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		else if(key.equals(DEF.KEY_TABLAYOUT)){
 			mTabLayout.setSummary(getTabLayoutSummary(sharedPreferences));
 			change = true;
+		}
+		else if(key.equals(DEF.KEY_MEMLIMIT)){
+			//
+			mMemLimit.setSummary(getMemLimitSummary(sharedPreferences));
 		}
 		if (change) {
 			// 親のActivityを再生成させる
@@ -981,6 +1018,18 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		return flag;
 	}
 
+	public static boolean getMarkerFileOnlyOn(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_MARKERFILEONLYON, false);
+		return flag;
+	}
+
+	public static boolean getMarkerFolderOnlyOn(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_MARKERFOLDERONLYON, false);
+		return flag;
+	}
+
 	public static boolean getArchiveCheckManualMode(SharedPreferences sharedPreferences){
 		boolean flag;
 		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_ARCHIVECHECKMANUALMODE, false);
@@ -1047,6 +1096,12 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		return flag;
 	}
 
+	public static boolean getBackgroundDownloadImageFile(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_BACKGROUNDDOWNLOADIMAGEFILE, false);
+		return flag;
+	}
+
 	public static boolean getOpenImageTextFile(SharedPreferences sharedPreferences){
 		boolean flag;
 		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_OPENIMAGETEXTFILE, false);
@@ -1069,6 +1124,35 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		boolean flag;
 		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_CANCELFILELISTDIALOG, false);
 		return flag;
+	}
+
+	public static boolean getSkipSortFilelist(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_SKIPSORTFILELIST, false);
+		return flag;
+	}
+
+	public static boolean getResolvePageKey(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_RESOLVEPAGEKEY, false);
+		return flag;
+	}
+
+	public static boolean getLoadWithFallback(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_LOADWITHFALLBACK, false);
+		return flag;
+	}
+
+	public static boolean getMemLimitEnable(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_MEMLIMITENABLE, false);
+		return flag;
+	}
+
+	public static int getMemLimit(SharedPreferences sharedPreferences){
+		int num =  DEF.getInt(sharedPreferences, DEF.KEY_MEMLIMIT, DEF.DEFAULT_MEMLIMIT);
+		return num;
 	}
 
 	// 設定を保存
@@ -1274,5 +1358,12 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 		int val = getTabLayout(sharedPreferences);
 		Resources res = getResources();
 		return res.getString(TabLayoutList[val]);
+	}
+
+	private String getMemLimitSummary(SharedPreferences sharedPreferences){
+		int size = getMemLimit(sharedPreferences);
+		Resources res = getResources();
+		String summ1 = res.getString(R.string.mPageSumm1);
+		return	DEF.getMemPageStr(size, summ1);
 	}
 }

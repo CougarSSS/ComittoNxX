@@ -344,6 +344,16 @@
             android:title="Check the directory for marker settings." />
         <CheckBoxPreference
             android:defaultValue="false"
+            android:key="MarkerFileOnlyOn"
+            android:summary="Enable the 'Files only' checkbox in the marker settings by default."
+            android:title="Check only the marker setting file" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="MarkerFolderOnlyOn"
+            android:summary="Enable the 'Folders only' checkbox in the marker settings by default."
+            android:title="Check only the marker setting folder" />
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:key="ArchiveCheckManualMode"
             android:summary="The identification time for compressed files will be shortened by fixing the identification process using a magic number instead of automatic detection."
             android:title="Referencing a magic number for identifying compressed files" />
@@ -399,6 +409,11 @@
             android:title="Open the image linked in the Text in an image viewer." />
         <CheckBoxPreference
             android:defaultValue="false"
+            android:key="BackgroundDownloadImageFile"
+            android:summary="Check this box to retrieve linked images in the background when the page preloads, rather than downloading them all at once."
+            android:title="Fetch the linked image in the background." />
+        <CheckBoxPreference
+            android:defaultValue="false"
             android:key="TabMode"
             android:summary="Check this box to enable tabbed display on the file selection screen."
             android:title="Enable tab display on the file selection screen." />
@@ -435,6 +450,33 @@
             android:key="CancelFileListDialog"
             android:summary="Check this box if you want to use the back key to cancel the display of the file list loading dialog."
             android:title="Canceling a dialog box by pressing the back key" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="SkipSortFilelist"
+            android:summary="Check this box to reduce access time by using a sorted file list.\n*If sorting fails, uncheck this box."
+            android:title="File sorting process is omitted." />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="ResolvePageKey"
+            android:summary="First, it attempts an exact match, and if no match is found, it falls back to the key of the nearest record on the same server with a matching filename (ignoring archive extensions).\nIt can consistently maintain the read position and read/unread status even after switching between ZIP or RAR file extensions or moving directories.\nIf no fallback is found, the exact key is returned."
+            android:title="Solve the problem of which key should be used to retrieve the read position." />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="LoadWithFallback"
+            android:summary="If no exact match is found, the system will fall back to the most recent set of records (e.g., multiple bookmarks) on the same server with matching filenames (ignoring archive extensions).\nBookmarks and history can be retained even after files have different extensions (ZIP or RAR) or after directory changes."
+            android:title="Collect and return all records associated with the original file of the bookmark." />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:key="MemLimitEnable"
+            android:summary="Check this box to limit the number of pages retrieved when preloading images linked from HTML and text files."
+            android:title="Limit the number of pages from which images linked in HTML and text are retrieved." />
+        <src.comitton.config.seekbar.LimitDownloadImageSeekbar
+            android:dialogMessage="Set a size limit for the number of pages to retrieve, including the number of pages before and after the specified number."
+            android:dialogTitle="The limit on the number of pages to retrieve images from HTML and text links."
+            android:key="MemLimit"
+            android:negativeButtonText="@null"
+            android:summary="dummy"
+            android:title="The limit on the number of pages to retrieve images from HTML and text links." />
     </src.comitton.config.ButtonPreferenceCategory>
     <PreferenceCategory android:title="Help" >
         <PreferenceScreen

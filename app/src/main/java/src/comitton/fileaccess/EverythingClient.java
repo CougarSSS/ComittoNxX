@@ -14,7 +14,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -74,9 +74,10 @@ public class EverythingClient {
                 }
 
                 try {
-                    String encodedQuery = URLEncoder.encode(query, "UTF-8");
-                    // path_column/size_column/date_modified_columnを指定しないと、
-                    // Everything HTTP Serverはそれぞれの値をレスポンスに含めない(pathがnullになる)
+                    // 修正1: URLEncoder.encode の '+' 問題を防ぐため Uri.encode または置換を行う
+                    // Uri.encode は URL クエリパラメータ用に安全に全角文字やスペースをパーセントエンコードする
+                    String encodedQuery = Uri.encode(query, "UTF-8");
+                    
                     String urlStr = "http://" + host + ":" + port + "/?search=" + encodedQuery
                             + "&json=1&path_column=1&size_column=1&date_modified_column=1";
                     Logcat.d(logLevel, "Everything API URL: " + urlStr);
@@ -89,13 +90,14 @@ public class EverythingClient {
 
                     if (!user.isEmpty() && !pass.isEmpty()) {
                         String auth = user + ":" + pass;
-                        String basicAuth = "Basic " + android.util.Base64.encodeToString(auth.getBytes(), android.util.Base64.NO_WRAP);
+                        String basicAuth = "Basic " + android.util.Base64.encodeToString(auth.getBytes(StandardCharsets.UTF_8), android.util.Base64.NO_WRAP);
                         conn.setRequestProperty("Authorization", basicAuth);
                     }
 
                     int responseCode = conn.getResponseCode();
                     if (responseCode == HttpURLConnection.HTTP_OK) {
-                        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                        // 修正2: 明示的に UTF-8 でレスポンスを読み込む
+                        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
                         StringBuilder response = new StringBuilder();
                         String inputLine;
                         while ((inputLine = in.readLine()) != null) {
@@ -121,18 +123,27 @@ public class EverythingClient {
                                 continue;
                             }
                             boolean isDir = "folder".equals(result.type);
-                            // EverythingXはUnix形式のパス(スラッシュ区切り)を返す前提で結合する
+                            // 修正3: Windows / Unix の両方のパス区切り文字に対応
+                            // Windowsの「\」をすべて「/」に統一して処理
+                            String normalizedPath = resultPath.replace("\\", "/");
+                            String normalizedName = resultName.replace("\\", "/");
+                            
                             String fullPath;
-                            if (resultPath.isEmpty()) {
-                                fullPath = resultName;
+                            if (normalizedPath.isEmpty()) {
+                                fullPath = normalizedName;
                             } else {
-                                fullPath = resultPath.endsWith("/") ? resultPath + resultName : resultPath + "/" + resultName;
+                                fullPath = normalizedPath.endsWith("/") ? normalizedPath + normalizedName : normalizedPath + "/" + normalizedName;
                             }
+
+                            // 設定された replaceFrom / replaceTo も「\」を「/」に統一して比較
+                            String normReplaceFrom = replaceFrom.replace("\\", "/");
+                            String normReplaceTo = replaceTo.replace("\\", "/");
+
                             String smbPath = fullPath;
 
-                            // パス変換(Unixのパスは大文字小文字を区別するため、前方一致判定も大文字小文字を区別する)
-                            if (!replaceFrom.isEmpty() && fullPath.startsWith(replaceFrom)) {
-                                smbPath = replaceTo + fullPath.substring(replaceFrom.length());
+                            // Windowsパスは非大文字小文字区別のケースが多いため、startsWithIgnoreCase処理や統一比較を行う
+                            if (!normReplaceFrom.isEmpty() && fullPath.toLowerCase().startsWith(normReplaceFrom.toLowerCase())) {
+                                smbPath = normReplaceTo + fullPath.substring(normReplaceFrom.length());
                             }
                             if (isDir && !smbPath.endsWith("/")) {
                                 smbPath += "/";

@@ -9,6 +9,7 @@ import jp.dip.muracoro.comittonx.R;
 import src.comitton.common.Logcat;
 import src.comitton.config.SetCacheActivity;
 import src.comitton.config.SetEpubActivity;
+import src.comitton.config.SetFileListActivity;
 import src.comitton.config.SetHardwareTextViewerKeyActivity;
 import src.comitton.dialog.ToolbarDialog;
 import src.comitton.fileaccess.FileAccess;
@@ -593,6 +594,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		Logcat.d(logLevel, "既読位置を取得します.");
 		mRestoreMaxPage = mSharedPreferences.getInt(DEF.createUrl(mUriTextPath, mUser, mPass) + "#maxpage", DEF.PAGENUMBER_NONE);
 		mRestorePage = mSharedPreferences.getInt(DEF.createUrl(mUriTextPath, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
 
 		// EPUB/青空文庫(圧縮ファイル内のテキスト)かつSMBサーバー上のファイルであれば、
 		// 開く前にサーバー側の既読位置を問い合わせる。総ページ数は端末ごとのフォント・余白・
@@ -601,7 +603,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		// 端末間で読書位置がずれてしまう)。mFileNameが空(圧縮ファイルでない単体テキスト)の
 		// 場合は対象外(ImageActivityの単体画像直接オープンと同じ扱い)。
 		ReadPositionSyncClient.Position remoteTextPosition = null;
-		if ((mFileType == FileData.FILETYPE_EPUB || mFileType == FileData.FILETYPE_TXT) && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty()) {
+		if ((mFileType == FileData.FILETYPE_EPUB || mFileType == FileData.FILETYPE_TXT) && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && mReadPositionSyncSet) {
 			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
 			remoteTextPosition = ReadPositionSyncClient.getRemotePosition(mSharedPreferences, syncHost, mPath, mFileName);
 			if (remoteTextPosition != null && remoteTextPosition.pagerate < 0) {
@@ -3906,7 +3908,8 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		// 参考値として送りつつ、実際に他端末での復元に使うのはpagerate(進捗率)。savePageは既読時に
 		// DEF.PAGENUMBER_READ(-2)等のセンチネル値になり得るため、pagerateは(既読時は1.0とみなして)
 		// 別途savePageRateから求める。
-		if ((mFileType == FileData.FILETYPE_EPUB || mFileType == FileData.FILETYPE_TXT) && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && maxpage > 0) {
+		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
+		if ((mFileType == FileData.FILETYPE_EPUB || mFileType == FileData.FILETYPE_TXT) && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && maxpage > 0 && mReadPositionSyncSet) {
 			float pushRate = (savePage == DEF.PAGENUMBER_READ) ? 1f : savePageRate;
 			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
 			ReadPositionSyncClient.pushPosition(mSharedPreferences, syncHost, mPath, mFileName, mCurrentPage, (int) maxpage, -1, pushRate);
@@ -3942,12 +3945,13 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 			mCurrentPage = mTextView.getPage();
 			mCurrentPageRate = (float)mCurrentPage / mTextMgr.length();
 			long historyDate = new Date().getTime();
+			boolean mHistorySyncSet = FileSelectActivity.getHistorySyncSet();
 			RecordList.add(RecordList.TYPE_HISTORY, type, mServer, mLocalFileName
 					, mTextName, historyDate, null, 0, mCurrentPageRate, mCurrentPage, null);
 
 			// SMBサーバー上のファイルであれば、複数端末で共有できるよう履歴もサーバーへ同期する
 			// (onAddBookmarkと同じ判定・同じpath/fileを使う)
-			if (mServer != DEF.INDEX_LOCAL) {
+			if (mServer != DEF.INDEX_LOCAL && mHistorySyncSet) {
 				String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
 				RecordItem syncItem = new RecordItem();
 				syncItem.setType(type);
@@ -3994,11 +3998,12 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		int type = (mFileName == null || mFileName.isEmpty()) ? RecordItem.TYPE_TEXT : RecordItem.TYPE_COMPTEXT;
 		mCurrentPageRate = (float)mCurrentPage / mTextMgr.length();
 		long bookmarkDate = new Date().getTime();
+		boolean mBookmarkSyncSet = FileSelectActivity.getBookmarkSyncSet();
 		RecordList.add(RecordList.TYPE_BOOKMARK, type, mServer, mLocalFileName
 				, mTextName, bookmarkDate, null, 0, mCurrentPageRate, mCurrentPage, name);
 
 		// SMBサーバー上のファイルであれば、複数端末で共有できるよう栞をサーバーへも同期する
-		if (mServer != DEF.INDEX_LOCAL) {
+		if (mServer != DEF.INDEX_LOCAL && mBookmarkSyncSet) {
 			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
 			RecordItem syncItem = new RecordItem();
 			syncItem.setType(type);

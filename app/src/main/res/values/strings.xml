@@ -74,6 +74,8 @@
     <string name="readxref">Loading XRef</string>
     <string name="readpage">Loading Page Object</string>
     <string name="download">Downloading File</string>
+    <string name="sortlist">Sorting list</string>
+    <string name="searchfile">Searching for files</string>
     <string name="imageParsing">Image Parsing</string>
     <string name="loaderr">Image Load Error.</string>
     <string name="localStrage">Local Storage</string>
@@ -315,6 +317,8 @@
     <string name="addBmOK">OK</string>
     <string name="addBmCancel">Cancel</string>
     <string name="dlTitle">Download</string>
+    <string name="sortListTitle">Sorting the list</string>
+    <string name="searchTitle">Search for files</string>
     <string name="rmTitle">Remove</string>
     <string name="exportLabel">File name</string>
     <string name="opeTitle">Operations</string>
@@ -559,6 +563,7 @@
     <string name="toolbar04">Add</string>
     <string name="toolbar05">Exit</string>
     <string name="toolbar06">Sync</string>
+    <string name="toolbar07">Web sharing</string>
     <string name="readPositionSyncDone">Synced read position for %1$d file(s)</string>
     <string name="readPositionSyncUnavailable">Bookmark sync server is not configured, or this is a local file list</string>
     <string name="listname00">File</string>
@@ -643,6 +648,9 @@
     <string name="selectOrEnterFile">Select or enter a file.</string>
     <string name="SaveConfig">Save settings to file.</string>
     <string name="LoadConfig">Load setting from file.</string>
+    <string name="SaveServerCode">Saved to the local folder.</string>
+    <string name="SaveErrorServerCode">Failed to save.</string>
+    <string name="LoadErrorServerCode">Failed to load.</string>
     <string name="FileNotExist">File not exist.</string>
 
     <string name="fontdlMsg">You text file for display setting to download the font.\nRun Download If you have selected more than once downloaded, the existing file is overwritten.</string>
@@ -737,6 +745,7 @@
     <string name="ToolbarPinchScaleUp">Zoom In</string>
     <string name="ToolbarPinchScaleDown">Zoom Out</string>
     <string name="ToolbarExitViewer">Exit viewer</string>
+    <string name="ToolbarReload">Reload image</string>
     <string name="Toolbarpicsize00">Original Size</string>
     <string name="Toolbarpicsize01">Original x1</string>
     <string name="Toolbarpicsize02">Original x2</string>
@@ -863,6 +872,7 @@
     <string name="serverTypeSMB">SMB</string>
     <string name="serverTypeSAF">Storage Access Framework</string>
     <string name="serverTypePicker">File Picker</string>
+    <string name="serverTypeWebDAV">WebDAV</string>
     <string name="SafChooseTitle">Select a folder.</string>
     <string name="permissionDenied">Permission denied.</string>
     <string name="noResponseProvider">No response from content provider.</string>
@@ -1004,6 +1014,7 @@
     <string name="horizontalfloatingicon">Horizontal position(%)</string>
     <string name="verticalfloatingicon">Vertical position(%)</string>
     <string name="transparencyfloatingicon">Background Transparency(%)</string>
+    <string name="enablebargrip">Enable the grip(drag handle).</string>
 
     <string name="floatingicondir00">Vertical direction</string>
     <string name="floatingicondir01">Horizontal direction</string>
@@ -1123,6 +1134,51 @@
     <string name="tablayout00">Top of screen</string>
     <string name="tablayout01">Bottom of screen</string>
     <string name="initbutton">Initialize</string>
+
+    <string name="ExitImageViewer">Exiting the image viewer</string>
+    <string name="ExitImageViewerEnding">Ending...</string>
+
+　　<string name="SetValue">\nSetting value: </string>
+    <string name="BookmarkSyncHost">Bookmark Sync Server IP Address</string>
+    <string name="BookmarkSyncPort">Bookmark Sync Server Port Number</string>
+    <string name="BookmarkSyncUser">Username for HTTP Auth (optional)</string>
+    <string name="BookmarkSyncPass">Password for HTTP Auth (optional)</string>
+
+    <string name="EverythingHost">Everything Server IP Address</string>
+    <string name="EverythingPort">Everything HTTP API Port Number</string>
+    <string name="EverythingUser">Username for HTTP Auth (optional)</string>
+    <string name="EverythingPass">Password for HTTP Auth (optional)</string>
+    <string name="EverythingReplaceFrom">Local path prefix on the Everything server to be replaced (e.g., /srv/share/)</string>
+    <string name="EverythingReplaceTo">SMB path prefix (e.g., smb://192.168.1.10/share/)</string>
+
+    <string name="ValidIPaddress">Please enter a valid IP address (e.g., 192.168.1.1).</string>
+    <string name="ValidPortaddress">Please enter a port number in the range of 1024 to 65535.</string>
+
+    <string name="ValidDirectory">Please select a valid directory.</string>
+    <string name="ValidFilename">Please enter a valid file name</string>
+    <string name="ReturnStorageList">[Return to storage list]</string>
+    <string name="StorageSelection">Select storage</string>
+    <string name="InternalStorage">Internal storage</string>
+    <string name="ExternalSDcard">External SD card</string>
+    <string name="SelectDirectory">Select this directory</string>
+    <string name="StartWebServer">Web sharing has started in the background.</string>
+    <string name="StopWebServer">Web sharing has been stopped.</string>
+    <string name="SelectedPath">Selected directory path: </string>
+    <string name="StartService">Start sharing</string>
+    <string name="StopService">Stop sharing</string>
+    <string name="IPaddrtess">IP Addrtess : </string>
+    <string name="PortNumber">Port Number : </string>
+    <string name="inoperation">In Operation</string>
+    <string name="Stopped">Stopped</string>
+    <string name="notificationWebServerTitle">ComittoNxX Web Sharing Service</string>
+    <string name="notificationWebServerText">Currently sharing on the web</string>
+    <string name="notificationChannel">Web Share Service Channel</string>
+    <string name="notificationWebServer">Web sharing in the background</string>
+    <string name="WebShareDialogTitle">Start/Stop Web Sharing</string>
+
+    <string name="webserverauth00">none</string>
+    <string name="webserverauth01">Basic authentication</string>
+    <string name="webserverauth02">Digest authentication</string>
 
     <!-- Preference Titles -->
     <string name="messages_header">Messages</string>

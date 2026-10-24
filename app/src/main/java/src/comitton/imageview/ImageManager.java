@@ -36,6 +36,8 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -58,6 +60,7 @@ import net.sf.sevenzipjbinding.SevenZipException;
 import net.sf.sevenzipjbinding.IInStream;
 
 import android.app.Activity;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Bitmap.Config;
@@ -70,6 +73,7 @@ import android.graphics.drawable.AnimatedImageDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.pdf.PdfRenderer;
 import android.graphics.ColorMatrix;
+import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
@@ -93,6 +97,9 @@ import src.comitton.config.SetImageActivity;
 import src.comitton.config.SetServerMessageBlockActivity;
 import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.SmbFileAccess;
+import src.comitton.fileaccess.WebDavRandomAccessFile;
+import src.comitton.fileaccess.WebDavUtil;
+import src.comitton.fileview.FileSelectActivity;
 import src.comitton.fileview.data.FileData;
 import src.comitton.fileaccess.FileAccessException;
 import src.comitton.fileaccess.WorkStream;
@@ -269,6 +276,7 @@ public class ImageManager extends InputStream implements Runnable {
 	private boolean mCloseFlag = false;
 	private boolean mCacheBreak;
 	private boolean mCacheSleep;
+	private boolean mCacheSleepOn = false;
 	private final Object mLock;
 
 	/** URIとパスとファイル名 */
@@ -334,6 +342,9 @@ public class ImageManager extends InputStream implements Runnable {
 	private File mAnimefile;
 	private ExternalFilterData mExternalFilterData;
 	private static boolean mBlank;
+	private boolean mDownload;
+	private boolean mMemLimitEnable;
+	private int mMemLimit;
 
 	@SuppressLint("SuspiciousIndentation")
     public ImageManager(AppCompatActivity activity, String path, String cmpfile, String user, String pass, int sort, Handler handler, boolean hidden, int openmode, int maxthread) {
@@ -374,6 +385,9 @@ public class ImageManager extends InputStream implements Runnable {
 			mPdfExpand = FileAccess.accessType(mFilePath);
 		}
 		mSmbRetryMode = SetServerMessageBlockActivity.getSmbRetryMode(sp);
+		mDownload = SetFileListActivity.getBackgroundDownloadImageFile(sp) && ImageActivity.getPrevNextMask();
+		mMemLimitEnable = SetFileListActivity.getMemLimitEnable(sp);
+		mMemLimit = SetFileListActivity.getMemLimit(sp);
 
  		// スレッド数
  		mMaxThreadNum = maxthread;
@@ -399,8 +413,8 @@ public class ImageManager extends InputStream implements Runnable {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します. memsize=" + memsize + ", memnext=" + memnext + ", memprev=" + memprev + ", memcache=" + memcache + ", messagemode=" + messagemode);
 		mMemSize = memsize;
-		mMemNextPages = memnext;
-		mMemPrevPages = memprev;
+		mMemNextPages = (mMemLimitEnable && mDownload && memnext >= mMemLimit) ? mMemLimit : memnext;
+		mMemPrevPages = (mMemLimitEnable && mDownload && memprev >= mMemLimit) ? mMemLimit : memprev;
 		mMemCacheThreshold = memcache;
 		mMessageMode = messagemode;
 
@@ -610,6 +624,9 @@ public class ImageManager extends InputStream implements Runnable {
 		}
 		else if (uri.startsWith("content://")) {
 			return DEF.ACCESS_TYPE_SAF;
+		}
+		else if (uri.startsWith("http://") || uri.startsWith("https://") || uri.startsWith("webdav://")) {
+			return DEF.ACCESS_TYPE_WEBDAV;
 		}
 		return DEF.ACCESS_TYPE_LOCAL;
 	}
@@ -866,6 +883,46 @@ public class ImageManager extends InputStream implements Runnable {
 		@Override
 		public void close() throws IOException {
 			raf.close();
+		}
+	}
+	// WebDAVのストリームアクセス(7-Zip-JBinding-4Android専用)
+	public class WebDavInStream implements IInStream {
+		private final WebDavRandomAccessFile file;
+		public WebDavInStream(WebDavRandomAccessFile file) {
+			this.file = file;
+		}
+		@Override
+		public long seek(long offset, int origin) throws SevenZipException {
+			try {
+				switch (origin) {
+					case SEEK_SET:
+						file.seek(offset);
+						break;
+					case SEEK_CUR:
+						file.seek(file.getFilePointer() + offset);
+						break;
+					case SEEK_END:
+						file.seek(file.length() + offset);
+						break;
+				}
+				return file.getFilePointer();
+			}
+			catch (IOException e) {
+				throw new SevenZipException("WebDAV seek error: " + e.getMessage());
+			}
+		}
+		@Override
+		public int read(byte[] data) throws SevenZipException {
+			try {
+				return file.read(data, 0, data.length);
+			}
+			catch (IOException e) {
+				throw new SevenZipException("WebDAV read error: " + e.getMessage());
+			}
+		}
+		@Override
+		public void close() throws IOException {
+			file.close();
 		}
 	}
 	// 再帰的な削除メソッド(キャッシュ削除に使用する)
@@ -1206,6 +1263,22 @@ public class ImageManager extends InputStream implements Runnable {
 						mainStream = new SafInStream(pfdMain);
 						break;
 					}
+					case DEF.ACCESS_TYPE_WEBDAV: {
+						// WebDAVの場合
+						// URIの正規化(二重スラッシュ除去・デコード)
+						String normalizedUrl = WebDavUtil.normalizeUri(mFilePath);
+						// フォーマット判定用に一瞬開いてヘッダー(262バイト)を読み込む
+						try (WebDavRandomAccessFile wrafCheck = new WebDavRandomAccessFile(normalizedUrl, mUser, mPass)) {
+							byte[] b = new byte[262];
+							int n = wrafCheck.read(b, 0, b.length);
+							detectedFormat = ArchiveDetector.detect(b, n);
+						}
+						// 本番用のランダムアクセスファイルを生成
+						WebDavRandomAccessFile wrafMain = new WebDavRandomAccessFile(normalizedUrl, mUser, mPass);
+						// 7-Zip解凍用の IInStream ラッパー(WebDavInStream)を生成
+						mainStream = new WebDavInStream(wrafMain);
+						break;
+					}
 				}
 				if (mainStream != null) {
 					// cmpClose()で確実に閉じられるよう、archiveの成否に関わらず参照を保持しておく
@@ -1334,7 +1407,6 @@ public class ImageManager extends InputStream implements Runnable {
 					}
 					// キャッシュディレクトリを作成
 					boolean result = mCacheDir.mkdirs();
-
 					if (archive == null) {
 						// 圧縮ファイルを開けなかった場合(SMB接続失敗等)はここで打ち切る。
 						// 打ち切らずに進むとarchiveがnullのままgetNumberOfItems()を呼びNPEでクラッシュする。
@@ -2564,7 +2636,6 @@ public class ImageManager extends InputStream implements Runnable {
 		}
 		mBlank = false;
 
-		sort(list);
 		if (mImageSort) {
 			// 例外が発生する可能性があるためtry～catchで囲む
 			try {
@@ -2581,6 +2652,9 @@ public class ImageManager extends InputStream implements Runnable {
 			catch (Exception e) {
 				Logcat.e(logLevel, "", e);
 			}
+		}
+		else {
+			sort(list);
 		}
 		mFileList = (FileListItem[]) list.toArray(new FileListItem[0]);
 		mMaxOrgLength = maxorglen;
@@ -2686,34 +2760,94 @@ public class ImageManager extends InputStream implements Runnable {
 	}
 
 	// 共通のコピーメソッド(ParcelFileDescriptorを使うと不安定になるので作成した)
+	// 読み込み(ネットワーク)と書き込み(ローカルディスク)を別スレッドで重ね合わせることで、
+	// SMB上のPDF等をキャッシュへコピーする際の速度を改善する(DownloadDialogと同じ手法)。
 	private void copyToCache(InputStream is, long totalSize, File tempFile) throws IOException {
 		try (InputStream input = is;
 			OutputStream os = new BufferedOutputStream(new FileOutputStream(tempFile))) {
-			// 1MB
-			byte[] buffer = new byte[1024 * 1024];
+
+			final int CHUNK_SIZE = 1024 * 1024;
+			final byte[] EOF_MARKER = new byte[0];
+			final BlockingQueue<byte[]> writeQueue = new ArrayBlockingQueue<byte[]>(3);
+			final Exception[] writeError = new Exception[1];
+			final OutputStream writeTarget = os;
+
+			Thread writerThread = new Thread(new Runnable() {
+				public void run() {
+					try {
+						while (true) {
+							byte[] chunk = writeQueue.take();
+							if (chunk == EOF_MARKER) {
+								break;
+							}
+							writeTarget.write(chunk, 0, chunk.length);
+						}
+					}
+					catch (Exception e) {
+						writeError[0] = e;
+					}
+				}
+			});
+			writerThread.start();
+
+			byte[] buffer = new byte[CHUNK_SIZE];
 			int length;
 			long downloaded = 0;
 			boolean stop = false;
-			while ((length = input.read(buffer)) != -1) {
-				// スレッド中断チェック(ゾンビプロセス防止)
-				if (Thread.currentThread().isInterrupted()) {
-					stop = true;
-					break;
-				}
-				if (!mRunningFlag) {
-					stop = true;
-					break;
-				}
-				os.write(buffer, 0, length);
-				downloaded += length;
-				// 進捗通知
-				if (totalSize > 0) {
-					int nowPercent = (int) (downloaded * 100 / totalSize);
-					final int p = nowPercent;
-					final long d = downloaded;
-					mHandler.post(() -> sendProgress(0, p, d, totalSize));
+			try {
+				while ((length = input.read(buffer)) != -1) {
+					// スレッド中断チェック(ゾンビプロセス防止)
+					if (Thread.currentThread().isInterrupted()) {
+						stop = true;
+						break;
+					}
+					if (!mRunningFlag) {
+						stop = true;
+						break;
+					}
+					if (writeError[0] != null) {
+						// 書き込みスレッドで既にエラーが発生している
+						break;
+					}
+					byte[] chunk = (length == buffer.length) ? buffer : Arrays.copyOf(buffer, length);
+					// 次の読み込み用に新しいバッファを用意する(書き込みスレッドがchunkを参照中のため使い回さない)
+					buffer = new byte[CHUNK_SIZE];
+					try {
+						writeQueue.put(chunk);
+					}
+					catch (InterruptedException e) {
+						Thread.currentThread().interrupt();
+						break;
+					}
+					downloaded += length;
+					// 進捗通知
+					if (totalSize > 0) {
+						int nowPercent = (int) (downloaded * 100 / totalSize);
+						final int p = nowPercent;
+						final long d = downloaded;
+						mHandler.post(() -> sendProgress(0, p, d, totalSize));
+					}
 				}
 			}
+			finally {
+				try {
+					writeQueue.put(EOF_MARKER);
+				}
+				catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+				try {
+					writerThread.join();
+				}
+				catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+				}
+			}
+
+			if (writeError[0] != null) {
+				throw new IOException("copyToCache write failed", writeError[0]);
+			}
+
 			os.flush();
 			// 書き込みを確定させる
 			if (os instanceof FileOutputStream) {
@@ -2893,6 +3027,9 @@ public class ImageManager extends InputStream implements Runnable {
 		return mFileType;
 	}
 
+	public int getExttype(int index) {
+		return mFileList[index].exttype;
+	}
 	// 最大ファイルサイズ(圧縮時)を返す
 	public int getMaxCmpLength() {
 		return mMaxCmpLength;
@@ -2958,6 +3095,12 @@ public class ImageManager extends InputStream implements Runnable {
 		}
 		else if (mHostType == DEF.ACCESS_TYPE_SAF || mHostType == DEF.ACCESS_TYPE_PICKER) {
 			strPath = FileAccess.filename(mActivity, strPath);
+		}
+		else if (mHostType == DEF.ACCESS_TYPE_WEBDAV) {
+			int idx = strPath.indexOf("@");
+			if (idx >= 0) {
+				strPath = "http://" + strPath.substring(idx + 1);
+			}
 		}
 
 		String pageStr;
@@ -3089,6 +3232,7 @@ public class ImageManager extends InputStream implements Runnable {
 
 			boolean fMemCacheWrite = false;
 			int page = -1;
+			mCacheSleepOn = false;
 			if (mCacheBreak || mCacheSleep) {
 				mCacheBreak = false;
 				if (mMemPriority != null && mMemPriority.length > 0) {
@@ -3101,6 +3245,9 @@ public class ImageManager extends InputStream implements Runnable {
 				}
 				catch (InterruptedException e) {
 
+				}
+				if (mCacheSleep) {
+					mCacheSleepOn = true;
 				}
 				continue;
 			}
@@ -3576,6 +3723,12 @@ public class ImageManager extends InputStream implements Runnable {
 		Logcat.d(logLevel, "終了します.");
 	}
 
+	public boolean checkTerminate() {
+		return mCacheSleepOn;
+	}
+	public boolean checkCacheSleep() {
+		return mCacheSleep;
+	}
 	private void sendMessage(Handler handler, int what, int arg1, int arg2, Object obj) {
 //		Logcat.d(logLevel, "arg=" + arg1 + ", " + arg2);
 		Message message = new Message();
@@ -4424,7 +4577,30 @@ public class ImageManager extends InputStream implements Runnable {
 		mDirIndex = 0;
 		mDirOrgPos = 0;
 		try {
-			mFiles = FileAccess.listFiles(mActivity, uri, user, pass, mHandler);
+			if (mDownload) {
+				List<File> processedFiles = FileSelectActivity.getfinalFiles();
+				if (processedFiles != null) {
+					// ダミーのリストを作成
+					mFiles = new ArrayList<>();
+					if (processedFiles != null) {
+						for (File f : processedFiles) {
+							FileData fd = new FileData();
+							fd.setName(mActivity, f.getName());
+							 // 未ダウンロードの場合は0
+							fd.setSize(f.exists() ? f.length() : 0);
+							mFiles.add(fd);
+						}
+					}
+					mDirIndex = 0;
+					mDirOrgPos = 0;
+				}
+				else {
+					mFiles = FileAccess.listFiles(mActivity, uri, user, pass, mHandler);
+				}
+			}
+			else {
+				mFiles = FileAccess.listFiles(mActivity, uri, user, pass, mHandler);
+			}
 			mBaseUri = uri;
 		}
 		catch (FileAccessException e) {
@@ -4476,16 +4652,21 @@ public class ImageManager extends InputStream implements Runnable {
 						// 画像の縦と横のサイズを得る
 						// 念のためtry～catchで囲む
 						try {
-							BitmapFactory.Options option = new BitmapFactory.Options();
-							option.inJustDecodeBounds = true;
 							File localFile = new File(mBaseUri, name);
-							// ヘッダー情報のみ取得
-							BitmapFactory.decodeFile(localFile.getAbsolutePath(), option);
-							int width = option.outWidth;
-							int height = option.outHeight;
-							Logcat.d(logLevel, "mDirIndex=" + mDirIndex + ", name=" + name + ", width=" + width + ", height=" + height);
-							// サイズが小さい場合はスキップさせる
-							if (width <= 1 || height <= 1) continue;
+							if (mDownload && (!localFile.exists() || localFile.length() == 0)) {
+								// Web等の未キャッシュファイルはサイズチェックを行わずに通過
+							}
+							else {
+								BitmapFactory.Options option = new BitmapFactory.Options();
+								option.inJustDecodeBounds = true;
+								// ヘッダー情報のみ取得
+								BitmapFactory.decodeFile(localFile.getAbsolutePath(), option);
+								int width = option.outWidth;
+								int height = option.outHeight;
+								Logcat.d(logLevel, "mDirIndex=" + mDirIndex + ", name=" + name + ", width=" + width + ", height=" + height);
+								// サイズが小さい場合はスキップさせる
+								if (width <= 1 || height <= 1) continue;
+							}
 						}
 						catch (Exception e) {
 						}
@@ -4507,7 +4688,44 @@ public class ImageManager extends InputStream implements Runnable {
 	}
 
 	public void dirSetPage(String imagefile) throws IOException {
-		mWorkStream = new WorkStream(mActivity, imagefile, mUser, mPass, mHandler);
+		if (imagefile == null || imagefile.isEmpty()) return;
+		if (mDownload) {
+			File targetFile = new File(imagefile);
+			// ファイルが存在しない(または未ダウンロードのWebキャッシュパスである)場合
+			if (!targetFile.exists() || targetFile.length() == 0) {
+				// バックグラウンドスレッド等でダウンロードを実行してからWorkStreamに渡す
+				// loader はクラスのフィールド等で保持している HybridImageLoader のインスタンス
+				File downloadedFile = FileSelectActivity.loader.getOrDownloadImage(targetFile);
+				if (downloadedFile != null && downloadedFile.exists()) {
+					// ダウンロード完了後にWorkStreamを初期化
+					try {
+						mWorkStream = new WorkStream(mActivity, downloadedFile.getAbsolutePath(), mUser, mPass, mHandler);
+					}
+					catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+				else {
+					// ダウンロード失敗
+					// 404エラーの画像を生成
+					downloadedFile = FileSelectActivity.loader.saveErrorImageFile(mActivity, 400, 300, 404, "Not Found");
+					// WorkStreamを初期化
+					try {
+						mWorkStream = new WorkStream(mActivity, downloadedFile.getAbsolutePath(), mUser, mPass, mHandler);
+					}
+					catch (IOException e) {
+						e.printStackTrace();
+					}
+				}
+			}
+			else {
+				// すでにローカルにある、またはキャッシュ済みの場合
+				mWorkStream = new WorkStream(mActivity, imagefile, mUser, mPass, mHandler);
+			}
+		}
+		else {
+			mWorkStream = new WorkStream(mActivity, imagefile, mUser, mPass, mHandler);
+		}
 	}
 
 	public void dirEndPage() throws IOException {
@@ -4538,6 +4756,39 @@ public class ImageManager extends InputStream implements Runnable {
 			mWorkStream.close();
 			mWorkStream = null;
 		}
+	}
+	// リロード用のページの再読み込み
+	public void ReloadPage(int page) {
+		// バックグラウンド処理でリロード用のファイル削除を実行
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					// バックグラウンドのキャッシュ処理を止める
+					mCacheSleep = true;
+					while (!mCacheSleepOn) {
+						Thread.sleep(50);
+					}
+					// リロード用のファイル名をセット
+					String mReloadfile = DEF.relativePath(mActivity, mFilePath, mFileList[page].name);
+					String packageName = mActivity.getPackageName();
+					if (mReloadfile.contains("/" + packageName + "/cache/") && mDownload) {
+						// キャッシュフォルダの場合はファイル削除を実行
+						try {
+							// ファイルを削除
+							File reload = new File(mReloadfile);
+							reload.delete();
+						}
+						catch (Exception e) {
+						}
+					}
+					// 画像のリロードのメッセージを送る
+					sendMessage(mHandler, DEF.HMSG_EVENT_RELOAD, -1, 0, null);
+				}
+				catch (Exception e) {
+				}
+			}
+		}).start();
 	}
 
 	/*************************** MemoryCache ***************************/
@@ -4891,23 +5142,28 @@ public class ImageManager extends InputStream implements Runnable {
 					Logcat.d(logLevel, "PDFファイルです.");
 					//ページ番号を指定してPdfRenderer.Pageインスタンスを取得する。
 					PdfRenderer.Page pdfPage = mPdfRenderer.openPage(page);
-					if (mScrWidth == 0 || mScrHeight == 0) {
-						// サムネイル作成なので、元のサイズを返す
-						width = pdfPage.getWidth();
-						height = pdfPage.getHeight();
+					int pdfWidth = pdfPage.getWidth();
+					int pdfHeight = pdfPage.getHeight();
+					if (pdfWidth == 0 || pdfHeight == 0) {
+						width = 0;
+						height = 0;
+					} else if (mScrWidth == 0 || mScrHeight == 0) {
+						// サムネイル作成時、DPI倍率を考慮して小さくなりすぎないよう変換
+						float densityDpi = mActivity.getResources().getDisplayMetrics().densityDpi;
+						float scale = densityDpi / 72f;
+						width = (int)(pdfWidth * scale);
+						height = (int)(pdfHeight * scale);
 					} else {
 						// 取得したサイズのままだと画質が悪いため、大きなサイズに変換する
+						// アスペクト比を維持しつつfloatで精密に計算
 						int maxsize = Math.min(3000, Math.max(mScrWidth, mScrHeight));
-						if (pdfPage.getWidth() == 0 || pdfPage.getHeight() == 0) {
-							width = 0;
-							height = 0;
-						}
-						else if (pdfPage.getWidth() > pdfPage.getHeight()) {
+						float aspectRatio = (float) pdfWidth / pdfHeight;
+						if (pdfWidth > pdfHeight) {
 							width = maxsize;
-							height = maxsize * pdfPage.getHeight() / pdfPage.getWidth();
+							height = Math.round(maxsize / aspectRatio);
 						} else {
-							width = maxsize * pdfPage.getWidth() / pdfPage.getHeight();
 							height = maxsize;
+							width = Math.round(maxsize * aspectRatio);
 						}
 					}
 					Logcat.v(logLevel, "PDF: pdfPage.getWidth()=" + pdfPage.getWidth() + ", pdfPage.getHeight()=" + pdfPage.getHeight() + ", " + mFileList[page].name);
@@ -5657,18 +5913,23 @@ public class ImageManager extends InputStream implements Runnable {
 				Logcat.v(logLevel, "PDFファイルを開きます. filename=" + mFileList[page].name);
 				//ページ番号を指定してPdfRenderer.Pageインスタンスを取得する。
 				PdfRenderer.Page pdfPage = mPdfRenderer.openPage(page);
-				// サムネイル画像が崩れる可能性があるのでそのまま返す
-				int Outwidth = pdfPage.getWidth();// / sampleSize;
-				int Outheight = pdfPage.getHeight();/// sampleSize;
-
-				//PdfRenderer.Pageの情報を使って空の描画用Bitmapインスタンスを作成する。
-				bm = Bitmap.createBitmap(pdfPage.getWidth() , pdfPage.getHeight() , Config.ARGB_8888);
+				// 端末の画面DPIから適切なスケール倍率を計算(72dpi基準)
+				float densityDpi = mActivity.getResources().getDisplayMetrics().densityDpi;
+				float scale = densityDpi / 72f;
+				// 画面解像度に合わせたピクセルサイズを算出
+				int Outwidth = (int)(pdfPage.getWidth() * scale);
+				int Outheight = (int)(pdfPage.getHeight() * scale);
+				Logcat.d(logLevel, "PDF Render Target Size: width=" + Outwidth + ", height=" + Outheight);
+				// 計算した解像度で空のBitmapインスタンスを作成
+				bm = Bitmap.createBitmap(Outwidth, Outheight, Config.ARGB_8888);
 				// PDFをレンダリングする前にBitmapを白く塗る。
 				Canvas canvas = new Canvas(bm);
 				canvas.drawColor(Color.WHITE);
-				canvas.drawBitmap(bm, 0, 0, null);
-				//空のBitmapにPDFの内容を描画する。
-				pdfPage.render(bm , null,null , PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+				// PDFのPointサイズをBitmapのPixelサイズに拡大縮小するMatrixを設定
+				Matrix matrix = new Matrix();
+				matrix.postScale(scale, scale);
+				// Matrixを指定してレンダリング
+				pdfPage.render(bm, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
 				//PdfRenderer.Pageを閉じる、この処理を忘れると次回読み込む時に例外が発生する。
 				pdfPage.close();
 				if (bm == null) {
@@ -5796,16 +6057,26 @@ public class ImageManager extends InputStream implements Runnable {
 		ImageData id = null;
 		//ページ番号を指定してPdfRenderer.Pageインスタンスを取得する。
 		PdfRenderer.Page pdfPage = mPdfRenderer.openPage(page);
+		int pdfWidth = pdfPage.getWidth();
+		int pdfHeight = pdfPage.getHeight();
+		int targetWidth = mFileList[page].o_width;
+		int targetHeight = mFileList[page].o_height;
 		//PdfRenderer.Pageの情報を使って空の描画用Bitmapインスタンスを作成する。
-		Logcat.d(logLevel, "BitmapSize pdfPage.getWidth()=" + pdfPage.getWidth() + ", pdfPage.getHeight()=" + pdfPage.getHeight() + ", " + mFileList[page].name);
-		Logcat.d(logLevel, "BitmapSize  mFileList[page].width=" + mFileList[page].o_width + ", mFileList[page].height =" + mFileList[page].o_height + ", " + mFileList[page].name);
-		Bitmap bm = Bitmap.createBitmap(mFileList[page].o_width , mFileList[page].o_height, Config.ARGB_8888);
+		Logcat.d(logLevel, "BitmapSize pdfPage.getWidth()=" + pdfWidth + ", pdfPage.getHeight()=" + pdfHeight + ", " + mFileList[page].name);
+		Logcat.d(logLevel, "BitmapSize mFileList[page].width=" + targetWidth + ", mFileList[page].height =" + targetHeight + ", " + mFileList[page].name);
+		// 指定サイズでBitmapを作成
+		Bitmap bm = Bitmap.createBitmap(targetWidth, targetHeight, Config.ARGB_8888);
 		// PDFをレンダリングする前にBitmapを白く塗る。
 		Canvas canvas = new Canvas(bm);
 		canvas.drawColor(Color.WHITE);
-		canvas.drawBitmap(bm, 0, 0, null);
-		//空のBitmapにPDFの内容を描画する。
-		pdfPage.render(bm , null,null , PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+		// pdfPageのサイズからtargetWidth/HeightにフィットさせるMatrix(変形行列)を計算
+		Matrix matrix = new Matrix();
+		float scaleX = (float) targetWidth / pdfWidth;
+		float scaleY = (float) targetHeight / pdfHeight;
+		// スケールを合わせる
+		matrix.postScale(scaleX, scaleY);
+		// Matrixを指定してレンダリング
+		pdfPage.render(bm, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
 		//PdfRenderer.Pageを閉じる、この処理を忘れると次回読み込む時に例外が発生する。
 		pdfPage.close();
 		if (bm != null) {
@@ -5819,10 +6090,15 @@ public class ImageManager extends InputStream implements Runnable {
 				int Outwidth = mFileList[page].width / mFileList[page].scale;
 				int Outheight = mFileList[page].height / mFileList[page].scale;
 				Logcat.d(logLevel, "Bitmap.createScaledBitmap start. width=" + Outwidth + ", height=" + Outheight);
-				bm = Bitmap.createScaledBitmap(bm, Outwidth, Outheight, true);
-				if (bm == null) {
+				Bitmap scaledBm = Bitmap.createScaledBitmap(bm, Outwidth, Outheight, true);
+				if (scaledBm == null) {
 					Logcat.e(logLevel, "Bitmap.createScaledBitmap failed.");
 					return null;
+				}
+				if (scaledBm != bm) {
+					// リサイズにより新しいBitmapが生成された場合は古い方を解放
+					bm.recycle(); 
+					bm = scaledBm;
 				}
 			}
 
@@ -7012,14 +7288,23 @@ public class ImageManager extends InputStream implements Runnable {
 						Logcat.d(logLevel, "PDFファイルを開きます.");
 						//ページ番号を指定してPdfRenderer.Pageインスタンスを取得する。
 						PdfRenderer.Page pdfPage = mPdfRenderer.openPage(page);
-						//PdfRenderer.Pageの情報を使って空の描画用Bitmapインスタンスを作成する。
-						Bitmap bm = Bitmap.createBitmap(pdfPage.getWidth() , pdfPage.getHeight() , Config.ARGB_8888);
+						// 端末の画面DPIから適切なスケール倍率を計算(72dpi基準)
+						float densityDpi = mActivity.getResources().getDisplayMetrics().densityDpi;
+						float scale = densityDpi / 72f;
+						// 画面解像度に合わせたピクセルサイズを算出
+						int Outwidth = (int) (pdfPage.getWidth() * scale);
+						int Outheight = (int) (pdfPage.getHeight() * scale);
+						Logcat.d(logLevel, "PDF Render Target Size: width=" + Outwidth + ", height=" + Outheight);
+						// 計算した解像度で空のBitmapインスタンスを作成
+						Bitmap bm = Bitmap.createBitmap(Outwidth, Outheight, Config.ARGB_8888);
 						// PDFをレンダリングする前にBitmapを白く塗る。
 						Canvas canvas = new Canvas(bm);
 						canvas.drawColor(Color.WHITE);
-						canvas.drawBitmap(bm, 0, 0, null);
-						//空のBitmapにPDFの内容を描画する。
-						pdfPage.render(bm , null,null , PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
+						// PDFのPointサイズをBitmapのPixelサイズに拡大縮小するMatrixを設定
+						Matrix matrix = new Matrix();
+						matrix.postScale(scale, scale);
+						// Matrixを指定してレンダリング
+						pdfPage.render(bm, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY);
 						//PdfRenderer.Pageを閉じる、この処理を忘れると次回読み込む時に例外が発生する。
 						pdfPage.close();
 						if (bm == null) {

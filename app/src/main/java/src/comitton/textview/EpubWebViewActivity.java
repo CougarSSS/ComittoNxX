@@ -70,6 +70,7 @@ import src.comitton.common.CustomKeySharedData;
 import src.comitton.config.SetConfigActivity;
 import src.comitton.config.SetEpubActivity;
 import src.comitton.config.SetFileColorActivity;
+import src.comitton.config.SetFileListActivity;
 import src.comitton.config.SetHardwareEpubWebViewKeyActivity;
 import src.comitton.config.SetImageActivity;
 import src.comitton.config.SetImageText;
@@ -1641,12 +1642,13 @@ public class EpubWebViewActivity extends AppCompatActivity implements GestureDet
 		long historyDate = new Date().getTime();
 		int nowPage = GetNowPage();
 		float rate = (float) nowPage / getTotalPagesNow();
+		boolean mHistorySyncSet = FileSelectActivity.getHistorySyncSet();
 		RecordList.add(RecordList.TYPE_HISTORY, type, mServer, mLocalFileName
 			, mTextName, historyDate, null, 0, rate, nowPage, null);
 
 		// SMBサーバー上のファイルであれば、複数端末で共有できるよう履歴もサーバーへ同期する
 		// (onAddBookmarkと同じ判定・同じpath/fileを使う)
-		if (mServer != DEF.INDEX_LOCAL) {
+		if (mServer != DEF.INDEX_LOCAL && mHistorySyncSet) {
 			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
 			RecordItem syncItem = new RecordItem();
 			syncItem.setType(type);
@@ -3321,11 +3323,12 @@ public class EpubWebViewActivity extends AppCompatActivity implements GestureDet
 		int type = (mFileName == null || mFileName.isEmpty()) ? RecordItem.TYPE_TEXT : RecordItem.TYPE_COMPTEXT;
 		long bookmarkDate = new Date().getTime();
 		int nowPage = GetNowPage();
+		boolean mBookmarkSyncSet = FileSelectActivity.getBookmarkSyncSet();
 		RecordList.add(RecordList.TYPE_BOOKMARK, type, mServer, mLocalFileName
 				, mTextName, bookmarkDate, null, currentSpineIndex, rate, nowPage, name);
 
 		// SMBサーバー上のファイルであれば、複数端末で共有できるよう栞をサーバーへも同期する
-		if (mServer != DEF.INDEX_LOCAL) {
+		if (mServer != DEF.INDEX_LOCAL && mBookmarkSyncSet) {
 			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
 			RecordItem syncItem = new RecordItem();
 			syncItem.setType(type);

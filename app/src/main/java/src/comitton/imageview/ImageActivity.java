@@ -13,6 +13,7 @@ import src.comitton.common.ExternalFilterData;
 import src.comitton.common.Logcat;
 import src.comitton.config.SetFileColorActivity;
 import src.comitton.cropimageview.CropImageActivity;
+import src.comitton.dialog.CustomNoneProgressDialog;
 import src.comitton.dialog.FloatingIconDialog;
 import src.comitton.dialog.FloatingIconDialog.FloatingIconListenerInterface;
 import src.comitton.dialog.ToolbarDialog;
@@ -226,6 +227,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			20,	// 中央影表示,
 			31,	// 画面の表示位置
 			41,	// アニメーション再生の一時停止
+			45,	// 画像の再読み込み
 			LIST_PROFILE1,	// プロファイル1
 			LIST_PROFILE2,	// プロファイル2
 			LIST_PROFILE3,	// プロファイル3
@@ -275,6 +277,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		DEF.MENU_CSHADOW,	// 中央影表示
 		DEF.MENU_DISPLAY_POSITION,	// 画面の表示位置
 		DEF.MENU_DISPLAY_ANIMEPAUSE,	// アニメーション再生の一時停止
+		DEF.MENU_RELOAD,	// 画像の再読み込み
 		DEF.MENU_PROFILE1,	// プロファイル1
 		DEF.MENU_PROFILE2,	// プロファイル2
 		DEF.MENU_PROFILE3,	// プロファイル3
@@ -323,6 +326,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		R.string.cShadow,		// 中央影表示
 		R.string.DisplayPositionMenu,		// 画面の表示位置
 		R.string.AnimationPause,	// アニメーション再生の一時停止
+		R.string.ToolbarReload,	// 画像の再読込み
 		R.string.Profile1,		// プロファイル1
 		R.string.Profile2,		// プロファイル2
 		R.string.Profile3,		// プロファイル3
@@ -332,7 +336,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		R.string.Profile7,		// プロファイル7
 		R.string.Profile8,		// プロファイル8
 		R.string.Profile9,		// プロファイル9
-		R.string.Profile10		// プロファイル10
+		R.string.Profile10,		// プロファイル10
 	};
 	private int[] mCommandId;
 	private String[] mCommandStr;
@@ -532,7 +536,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	/** ファイルのタイムスタンプ */
 	private long mTimestamp = 0L;
 	private String mLastpath = "";
-	private boolean mPrevNextMask = false;
+	private static boolean mPrevNextMask = false;
 
 	private ImageManager mImageMgr = null;
 
@@ -703,6 +707,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	private static int mFloatingIconTransparency;
 	private static int mFloatingIconDirectionMode;
 	private static boolean mFloatingIconEnable;
+	private static boolean mFloatingIconBarGrip;
 
 	private static ImageButton[] imageButtons = null;
 
@@ -734,6 +739,9 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	private boolean mAdjustZoomSameAsPinch;
 	private Gson gson;
 	private String jsonString;
+	private Handler mWaitHandler;
+	private Runnable mWaitRunnable;
+	private int mReloadPage;
 
 	private static OrientationEventListener orientationEventListener = null;
 	private static int deviceOrientation = -1;
@@ -876,6 +884,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		mNextPage = -1;
 		mIsConfSave = true;
 		mNoiseSwitch = new NoiseSwitch(mHandler);
+		mReloadPage = -1;
 
 		// ダイアログは初期化
 		PageThumbnail.mIsOpened = false;
@@ -985,7 +994,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		mImageName = intent.getStringExtra("Image"); 			// 画像直接指定時はファイル/ExpandActivityから開いた時はZIP内部のファイル
 		mLastpath = intent.getStringExtra("Lastpath");
 		// HTML/テキストの展開中は前後のしおり及びファイル移動を行わせない
-		if (mLastpath != null) mPrevNextMask = true;
+		mPrevNextMask = (mLastpath != null && !mLastpath.equals("")) ? true : false;
 
 		// intentからページ番号を取り出すとバグが発生するため保存しない
 		// 画像ファイル名からページ番号を決めることもしない
@@ -1016,10 +1025,11 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 		Logcat.d(logLevel, "既読位置を取得します.");
 		mRestorePage = DEF.getPageWithFallback(mSharedPreferences, mFilePath, mUser, mPass);
+		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
 
 		// サーバー同期が有効なSMBサーバー上のファイルであれば、開く前にサーバー側の既読位置を問い合わせて
 		// ローカルより優先する(「サーバー側と同期してから開く」仕様)
-		if (mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty()) {
+		if (mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && mReadPositionSyncSet) {
 			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
 			ReadPositionSyncClient.Position remotePosition =
 					ReadPositionSyncClient.getRemotePosition(mSharedPreferences, syncHost, mPath, mFileName);
@@ -1216,6 +1226,9 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.i(logLevel, "開始します.");
 
+		if (mWaitHandler != null) {
+			mWaitHandler.removeCallbacksAndMessages(null);
+		}
 		if (mSourceImage[0] != null) {
 			mSourceImage[0] = null;
 		}
@@ -2131,7 +2144,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 			case DEF.HMSG_PROGRESS_IMAGE_END:
 				if (mProgressDialog != null) {
-					mProgressDialog.dismiss();
+					mProgressDialog.dismissAllowingStateLoss();
 					mProgressDialog = null;
 				}
 				return true;
@@ -2140,7 +2153,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				// 読込中の表示
 				if (!isFinishing() && mProgressDialog != null) {
 					try {
-						mProgressDialog.dismiss();
+						mProgressDialog.dismissAllowingStateLoss();
 						mProgressDialog = null;
 					}
 					catch (Exception ex) {
@@ -2175,6 +2188,11 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 				else if (mCurrentPage >= mImageMgr.length()) {
 					mCurrentPage = mImageMgr.length() - 1;
+				}
+				if (mReloadPage != -1) {
+					// リロード時はページを戻す
+					mCurrentPage = mReloadPage;
+					mReloadPage = -1;
 				}
 
 				mThumID = System.currentTimeMillis();
@@ -2279,6 +2297,14 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			case DEF.HMSG_EVENT_ZOOMVIEWOFF:
 				// 画面更新中の文字を消す
 				mGuideView.setGuideText(null);
+				break;
+			case DEF.HMSG_EVENT_RELOAD:
+				// リロード用に現在のページを保存
+				mReloadPage = mCurrentPage;
+				// リロード時は再描画のスレッド開始
+				mZipLoad = new ZipLoad(mHandler, this);
+				mZipThread = new Thread(mZipLoad);
+				mZipThread.start();
 				break;
 		}
 		return false;
@@ -2441,7 +2467,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 			boolean isSingle = false; // 現在ページが単ページか
 			if (isHalfView() && bm[0] != null) {
-				if (checkAnimeOn() || checkSingleAnimeImage()) {
+				if ((checkAnimeOn() || checkSingleAnimeImage()) && checkAnimeExtType(mCurrentPage)) {
 					// アニメーションを表示する場合は横長画面でも単ページ扱いにする
 					mHalfPos = HALFPOS_1ST;
 					mSourceImage[0] = bm[0];
@@ -2530,7 +2556,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			// 拡大/縮小
 			ImageScaling();
 
-			if (mImageMgr.mAnimeList != null && mAnimationEnable && (!mScrlNext || mAnimationForce)) {
+			if (mImageMgr.mAnimeList != null && mAnimationEnable && (!mScrlNext || mAnimationForce) && checkAnimeExtType(mCurrentPage)) {
 				// 以前の表示を取り消す前に背景を塗りつぶす
 				mImageView.ViewOff(true);
 				// 以前の表示を取り消す
@@ -2578,7 +2604,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 			}
 
-			if (mImageMgr.mAnimeFile && mAnimationEnable && mArchiveAnimationEnable && (!mScrlNext || mAnimationForce)) {
+			if (mImageMgr.mAnimeFile && mAnimationEnable && mArchiveAnimationEnable && (!mScrlNext || mAnimationForce) && checkAnimeExtType(mCurrentPage)) {
 				// 以前の表示を取り消す前に背景を塗りつぶす
 				mImageView.ViewOff(true);
 				// 以前の表示を取り消す
@@ -2601,7 +2627,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 			}
 
-			if (checkSingleAnimeImage()) {
+			if (checkSingleAnimeImage() && checkAnimeExtType(mCurrentPage)) {
 				// 単独の画像ファイルの場合
 				if (FileAccess.accessType(mUriPath) == DEF.ACCESS_TYPE_SAF) {
 					// SAFの場合は特別に処理
@@ -2668,7 +2694,10 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 	// 単独のアニメーション画像ファイルかどうかをチェック
 	private boolean checkSingleAnimeImage() {
-		return mImageMgr.mAnimeList == null && !mImageMgr.mAnimeFile && mAnimationEnable && (!mScrlNext && mHalfPos == HALFPOS_1ST || mAnimationForce);
+		return mImageMgr.mAnimeList == null && !mImageMgr.mAnimeFile && mAnimationEnable && (!mScrlNext || mAnimationForce);
+	}
+	private boolean checkAnimeExtType(int page) {
+		return mImageMgr.getExttype(page) == FileData.EXTTYPE_WEBP || mImageMgr.getExttype(page) == FileData.EXTTYPE_GIF;
 	}
 
 	// Bitmapを読み込む
@@ -3210,7 +3239,6 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 							navibar_height = mNavigationAreaRange;
 							statusbar_height = mStatusAreaRange;
 						}
-						Logcat.v(1, "statusbar_height=" + statusbar_height + ", navibar_height=" + navibar_height);
 						if (statusbar_height <= 0) {
 							statusbar_height = mStatusAreaRange;
 						}
@@ -4226,6 +4254,9 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				break;
 			case DEF.TAP_PINCHSCALEUP:
 				// ピンチズーム変更
+				if (checkAnimeOn()) {
+					break;
+				}
 				mPinchScaleSel /= 5;
 				mPinchScaleSel *= 5;
 				mPinchScaleSel += 5;
@@ -4255,6 +4286,9 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				break;
 			case DEF.TAP_PINCHSCALEDOWN:
 				// ピンチズーム変更
+				if (checkAnimeOn()) {
+					break;
+				}
 				mPinchScaleSel /= 5;
 				mPinchScaleSel *= 5;
 				mPinchScaleSel -= 5;
@@ -4736,11 +4770,11 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			case SELLIST_SCR_ROTATE:
 				// 画面方向
 				title = res.getString(R.string.rotateMenu);
-				selIndex = mViewRota - 1;
-				nItem = SetImageActivity.RotateName.length - 1;
+				selIndex = mViewRota;
+				nItem = SetImageActivity.RotateName.length;
 				items = new String[nItem];
 				for (int i = 0; i < nItem; i++) {
-					items[i] = res.getString(SetImageActivity.RotateName[i + 1]);
+					items[i] = res.getString(SetImageActivity.RotateName[i]);
 				}
 				break;
 			case SELLIST_SETPROFILE:
@@ -4917,9 +4951,9 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 						break;
 					case SELLIST_SCR_ROTATE:
 						// 画面方向
-						if (mViewRota != index + 1) {
+						if (mViewRota != index) {
 							int prevRota = mViewRota;
-							mViewRota = index + 1;
+							mViewRota = index;
 							DEF.setRotation(mActivity, mViewRota);
 							if (mViewRota == DEF.ROTATE_PSELAND) {
 								// 疑似横画面
@@ -5509,10 +5543,12 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			// ディレクトリ選択
 			mMenuDialog.addItem(DEF.MENU_SEL_DIR_TREE, res.getString(R.string.selDirTreeMenu));
 		}
-		// ブックマーク選択
-		mMenuDialog.addItem(DEF.MENU_SELBOOKMARK, res.getString(R.string.selBookmarkMenu));
-		// ブックマーク追加
-		mMenuDialog.addItem(DEF.MENU_ADDBOOKMARK, res.getString(R.string.addBookmarkMenu));
+		if (!mPrevNextMask) {
+			// ブックマーク選択
+			mMenuDialog.addItem(DEF.MENU_SELBOOKMARK, res.getString(R.string.selBookmarkMenu));
+			// ブックマーク追加
+			mMenuDialog.addItem(DEF.MENU_ADDBOOKMARK, res.getString(R.string.addBookmarkMenu));
+		}
 		if (mEnableContentsFile) {
 			// 目次の選択
 			mMenuDialog.addItem(DEF.MENU_CONTENTS, res.getString(R.string.SelectContentsMenu));
@@ -5545,8 +5581,10 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		}
 		// 共有一時ファイル削除
 		mMenuDialog.addItem(DEF.MENU_DELSHARE, res.getString(R.string.delshareMenu));
-		mMenuDialog.addItem(DEF.MENU_SETTHUMB, res.getString(R.string.setThumb));
-		mMenuDialog.addItem(DEF.MENU_SETTHUMBCROPPED, res.getString(R.string.setThumbCropped));
+		if (!mPrevNextMask) {
+			mMenuDialog.addItem(DEF.MENU_SETTHUMB, res.getString(R.string.setThumb));
+			mMenuDialog.addItem(DEF.MENU_SETTHUMBCROPPED, res.getString(R.string.setThumbCropped));
+		}
 		if (mAnimationEnable) {
 			// アニメーション再生の一時停止
 			mMenuDialog.addItem(DEF.MENU_DISPLAY_ANIMEPAUSE, res.getString(R.string.AnimationPause));
@@ -5740,7 +5778,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		// ブックマーク選択
 		mMenuDialog.addSection(res.getString(R.string.selBookmarkMenu));
 
-		ArrayList<RecordItem> list = RecordList.loadWithFallback(null, RecordList.TYPE_BOOKMARK, mServer, mPath, mFileName);
+		ArrayList<RecordItem> list = (FileSelectActivity.getLoadWithFallback())? RecordList.loadWithFallback(null, RecordList.TYPE_BOOKMARK, mServer, mPath, mFileName) : RecordList.load(null, RecordList.TYPE_BOOKMARK, mServer, mPath, mFileName);
 		// ブックマークのコピーを作る
 		ArrayList<RecordItem> list_copy = new ArrayList<RecordItem>(list);
 
@@ -6282,6 +6320,11 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				TouchPanelView.setHandler(mHandler, mPinchScaleSel);
 				TouchPanelView.SetAlertDialogZoomLevel(mActivity);
 				break;
+			case DEF.MENU_RELOAD: {
+				// 画像の再読み込み
+				execReloadFile(mCurrentPage);
+				break;
+			}
 
 			default: {
 				if (id >= DEF.MENU_DIR_TREE) {
@@ -6604,6 +6647,38 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				LoadProfile(9);
 				break;
 			}
+			case DEF.TOOLBAR_LEFTSCROLL: {
+				SetTouchPanelCommandMain(DEF.TAP_TOOLBARNEXTSCROLL);
+				break;
+			}
+			case DEF.TOOLBAR_RIGHTSCROLL: {
+				SetTouchPanelCommandMain(DEF.TAP_TOOLBARPREVSCROLL);
+				break;
+			}
+			case DEF.TOOLBAR_GLASSPLUS: {
+				SetTouchPanelCommandMain(DEF.TAP_PINCHSCALEUP);
+				break;
+			}
+			case DEF.TOOLBAR_GLASSMINUS: {
+				SetTouchPanelCommandMain(DEF.TAP_PINCHSCALEDOWN);
+				break;
+			}
+			case DEF.TOOLBAR_ZOOMRESET: {
+				SetTouchPanelCommandMain(DEF.TAP_ZOOMRESET);
+				break;
+			}
+			case DEF.TOOLBAR_PLAYPAUSE: {
+				SetTouchPanelCommandMain(DEF.TAP_ANIMEPAUSE);
+				break;
+			}
+			case DEF.TOOLBAR_NAVIBACK: {
+				SetTouchPanelCommandMain(DEF.TAP_EXIT_VIEWER);
+				break;
+			}
+			case DEF.TOOLBAR_RELOAD: {
+				execReloadFile(mCurrentPage);
+				break;
+			}
 
 		}
 	}
@@ -6907,6 +6982,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			mFloatingIconTransparency = FloatingIconDialog.getTransparency(sharedPreferences);
 			mFloatingIconDirectionMode = FloatingIconDialog.getDirectionMode(sharedPreferences);
 			mFloatingIconEnable = FloatingIconDialog.getEnable(sharedPreferences);
+			mFloatingIconBarGrip = FloatingIconDialog.getBarGrip(sharedPreferences);
 			mBackgroundPause = SetImageActivity.getBackgroundPause(sharedPreferences);
 			mAnimationEnable = SetImageActivity.getAnimationEnable(sharedPreferences);
 			mAnimationScan = SetImageActivity.getAnimationScan(sharedPreferences);
@@ -7409,8 +7485,6 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		if (mCloseDialog != null) {
 			return;
 		}
-		// バックグラウンドでのキャッシュ読み込み停止(これを入れないと固まる場合がある)
-		mImageMgr.setCacheSleep(true);
 		mCloseDialog = new CloseDialog(this, R.style.MyDialog);
 		mCloseDialog.setTitleText(layout);
 		mCloseDialog.setPrevNextMask(mPrevNextMask);
@@ -7427,8 +7501,6 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			public void onClose() {
 				// 終了
 				mCloseDialog = null;
-				// バックグラウンドでのキャッシュ読み込み再開
-				mImageMgr.setCacheSleep(false);
 			}
 		});
 		mCloseDialog.show();
@@ -7444,6 +7516,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		// ブックマーク追加
 		long bookmarkDate = new Date().getTime();
 		String bookmarkImage = mImageMgr.mFileList[mCurrentPage].name;
+		boolean mBookmarkSyncSet = FileSelectActivity.getBookmarkSyncSet();
 		int bookmarkType;
 		if ((mFileName == null || mFileName.isEmpty()) && (mImageName != null && !mImageName.isEmpty())) {
 			Logcat.d(logLevel, "画像ファイル指定.");
@@ -7459,7 +7532,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				, bookmarkDate, bookmarkImage, mCurrentPage, name);
 
 		// SMBサーバー上のファイルであれば、複数端末で共有できるよう栞をサーバーへも同期する
-		if (mServer != DEF.INDEX_LOCAL) {
+		if (mServer != DEF.INDEX_LOCAL && mBookmarkSyncSet) {
 			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
 			RecordItem syncItem = new RecordItem();
 			syncItem.setType(bookmarkType);
@@ -7479,8 +7552,60 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	}
 
 	public void finishActivity(int select, boolean resume, boolean mark) {
+		// イメージビューア終了のダイアログの表示を準備
+		Handler mainHandler = new Handler(Looper.getMainLooper());
+		Resources res = mActivity.getResources();
+		CustomNoneProgressDialog mNoneProgressDialog = new CustomNoneProgressDialog(res.getString(R.string.ExitImageViewer), res.getString(R.string.ExitImageViewerEnding), mHandler);
+		supportFragmentManager = mActivity.getSupportFragmentManager();
+		mWaitHandler = new Handler(Looper.getMainLooper());
+		final boolean[] isDialogShown = {false};
+		// 500ms後にダイアログ表示を試みる処理
+		Runnable showDialogRunnable = () -> {
+			// すでに終了条件を満たしている場合やActivity破棄時は表示しない
+			if (mActivity.isFinishing() || mActivity.isDestroyed() || mImageMgr.checkTerminate()) {
+				return;
+			}
+			// 500ms経過しても終了していなければ表示
+			if (!supportFragmentManager.isStateSaved()) {
+				mNoneProgressDialog.show(supportFragmentManager, TAG);
+				isDialogShown[0] = true;
+			}
+		};
+		// 500ms後にダイアログ表示を予約
+		mWaitHandler.postDelayed(showDialogRunnable, 500);
+		mWaitRunnable = new Runnable() {
+			@Override
+			public void run() {
+				// すでに実行済み又はActivityが終了している場合は処理しない
+				if (isFinishing() || isDestroyed()) {
+					return;
+				}
+				if (!mImageMgr.checkCacheSleep()) {
+					// バックグラウンドでのキャッシュ読み込み停止
+					mImageMgr.setCacheSleep(true);
+				}
+        		if (mImageMgr.checkTerminate()) {
+					mWaitHandler.removeCallbacksAndMessages(null);
+					// ダイアログが実際に表示されていた場合のみ閉じる処理を行う
+					if (isDialogShown[0] && mNoneProgressDialog != null) {
+						mNoneProgressDialog.dismissAllowingStateLoss();
+					}
+					// 条件を満たしたらfinishActivityMainを実行
+					finishActivityMain(select, resume, mark);
+				}
+				else {
+					// まだ終わっていなければ50ms後に再チェック
+					mWaitHandler.postDelayed(this, 50);
+				}
+			}
+		};
+		mWaitHandler.post(mWaitRunnable);
+	}
+	public void finishActivityMain(int select, boolean resume, boolean mark) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します.");
+		// 待機ループを完全に停止
+		cleanupHandler();
 
 		if (mPrevNextMask) {
 			select = CloseDialog.CLICK_CLOSE;
@@ -7515,10 +7640,15 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			// 圧縮ファイルオープン以外の時
 			if (select == CloseDialog.CLICK_CLOSE && mImageName != null && !mImageName.isEmpty()) {
 				// クローズかつイメージファイル直接オープンのとき
-				lastfile = mImageName;
+				if (mImageMgr.mFileList[mCurrentPage].name != null) {
+					lastfile = mImageMgr.mFileList[mCurrentPage].name;
+				}
+				else {
+					lastfile = mFileName;
+				}
 				lastpath = mPath;
 				// 元のフォルダが指定されていれば特別に処理
-				if (mLastpath != null) lastpath = mLastpath;
+				if (!mLastpath.equals("")) lastpath = mLastpath;
 			}
 			else {
 				// ディレクトリオープンのとき
@@ -7538,6 +7668,13 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		else {
 			lastfile = mFileName;
 			lastpath = mPath;
+		}
+		if (resume) {
+			// ページが変わるとファイル名が更新されるので記録する
+			Editor ed = mSharedPreferences.edit();
+			ed.putString("LastFile", lastfile);
+			ed.putString("LastImage", lastfile);
+			ed.apply();
 		}
 
 		// 呼び出し元に通知
@@ -7579,6 +7716,13 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		}
 	}
 
+	private void cleanupHandler() {
+		if (mWaitHandler != null && mWaitRunnable != null) {
+			mWaitHandler.removeCallbacks(mWaitRunnable);
+			mWaitHandler = null;
+			mWaitRunnable = null;
+		}
+	}
 	// 現在ページ情報を保存
 	private void saveCurrentPage() {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
@@ -7614,7 +7758,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 	// 既読位置をサーバーへ反映する(SMBサーバー上のアーカイブのみ対象、ベストエフォート)
 	private void pushReadPositionToServer() {
-		if (mImageMgr == null || mServer == DEF.INDEX_LOCAL || mFileName == null || mFileName.isEmpty()) {
+		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
+		if (mImageMgr == null || mServer == DEF.INDEX_LOCAL || mFileName == null || mFileName.isEmpty() || !mReadPositionSyncSet) {
 			return;
 		}
 		int maxpage = mImageMgr.length();
@@ -7771,7 +7916,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 						, mImageMgr.mFileList[mCurrentPage].name, mCurrentPage, null);
 
 				// SMBサーバー上のファイルであれば、複数端末で共有できるよう履歴もサーバーへ同期する
-				if (mServer != DEF.INDEX_LOCAL) {
+				boolean mHistorySyncSet = FileSelectActivity.getHistorySyncSet();
+				if (mServer != DEF.INDEX_LOCAL && mHistorySyncSet) {
 					String host = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
 					RecordItem syncItem = new RecordItem();
 					syncItem.setType(RecordItem.TYPE_IMAGE);
@@ -8991,14 +9137,14 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		mFloatingIconSetting = true;
 		mFloatingIconDialog = new FloatingIconDialog(this, R.style.MyDialog, command_id, false, this, mHandler);
 
-		mFloatingIconDialog.setConfig(mFloatingIconDirectionMode, mFloatingIconSize, mFloatingIconHorizontal, mFloatingIconVertical, mFloatingIconTransparency, mFloatingIconEnable);
+		mFloatingIconDialog.setConfig(mFloatingIconDirectionMode, mFloatingIconSize, mFloatingIconHorizontal, mFloatingIconVertical, mFloatingIconTransparency, mFloatingIconEnable, mFloatingIconBarGrip);
 		mFloatingIconDialog.setFloatingIconListner(new FloatingIconListenerInterface() {
 			@Override
-			public void onButtonSelect(int select, int size, int horizontal, int vertical, int transparency, int directionmode, boolean enable) {
+			public void onButtonSelect(int select, int size, int horizontal, int vertical, int transparency, int directionmode, boolean enable, boolean bargrip) {
 				// 選択状態を通知
 				boolean ischange = false;
 				// 変更があるかを確認(適用後のキャンセルの場合も含む)
-				if (mFloatingIconSize != size || mFloatingIconHorizontal != horizontal || mFloatingIconVertical != vertical || mFloatingIconTransparency != transparency || mFloatingIconDirectionMode != directionmode || mFloatingIconEnable != enable) {
+				if (mFloatingIconSize != size || mFloatingIconHorizontal != horizontal || mFloatingIconVertical != vertical || mFloatingIconTransparency != transparency || mFloatingIconDirectionMode != directionmode || mFloatingIconEnable != enable || mFloatingIconBarGrip != bargrip) {
 					ischange = true;
 				}
 				mFloatingIconSize = size;
@@ -9007,6 +9153,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				mFloatingIconTransparency = transparency;
 				mFloatingIconDirectionMode = directionmode;
 				mFloatingIconEnable = enable;
+				mFloatingIconBarGrip = bargrip;
 				// 戻す場合にも表示更新を適用
 				AddButton(layout, mActivity);
 				if (ischange) {
@@ -9019,6 +9166,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 					ed.putInt(DEF.KEY_FLOATINGICONTRANSPARENCY, mFloatingIconTransparency);
 					ed.putInt(DEF.KEY_FLOATINGICONDIRECTIONMODE, mFloatingIconDirectionMode);
 					ed.putBoolean(DEF.KEY_FLOATINGICONENABLE, mFloatingIconEnable);
+					ed.putBoolean(DEF.KEY_FLOATINGICONBARGRIP, mFloatingIconBarGrip);
 					ed.apply();
 				}
 			}
@@ -9052,6 +9200,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		FrameLayout.LayoutParams[] iconParamsAll;
 		// アイコンの数を取得
 		int length = FloatingIconEditDialog.GetStatusLength(this);
+		// グリップが有効の場合はアイコンの数を1増やす
+		length = (mFloatingIconBarGrip) ? length + 1 : length;
 		iconParamsAll = new FrameLayout.LayoutParams[length];
 		// アイコンのサイズをdpで指定
 		// 16ドットと空白×2だけ確保する
@@ -9096,6 +9246,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		if (mFloatingIconEnable) {
 			// フローティングアイコンが有効の場合
 			ViewGroup.LayoutParams layoutParams;
+			 // つまみの太さ(通常サイズの1/2)
+			int handleThickness = sizeInPx / 2;
 			// フローティングアイコンを描画
 			for (int i = 0; i < length; i++) {
 				iconParamsAll[i] = new FrameLayout.LayoutParams(
@@ -9107,14 +9259,44 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				if (mFloatingIconDirectionMode == 0) {
 					// 縦方向
 					// アイコンのサイズだけ座標をずらす
-					iconParamsAll[i].topMargin = heightmargin + i * sizeInPx;
-					iconParamsAll[i].leftMargin = widthmargin;
+					if (mFloatingIconBarGrip) {
+						// グリップが有効の場合
+						if (i == 0) {
+							// 移動用つまみ(高さを細くする)
+							iconParamsAll[i].topMargin = heightmargin;
+							iconParamsAll[i].leftMargin = widthmargin;
+						}
+						else {
+							// 2つ目以降の機能アイコン(移動ボタンの高さ+残りのアイコンサイズ分ずらす)
+							iconParamsAll[i].topMargin = heightmargin + handleThickness + (i - 1) * sizeInPx;
+							iconParamsAll[i].leftMargin = widthmargin;
+						}
+					}
+					else {
+						iconParamsAll[i].topMargin = heightmargin + i * sizeInPx;
+						iconParamsAll[i].leftMargin = widthmargin;
+					}
 				}
 				else {
 					// 横方向
 					// アイコンのサイズだけ座標をずらす
-					iconParamsAll[i].topMargin = heightmargin;
-					iconParamsAll[i].leftMargin = widthmargin + i * sizeInPx;
+					if (mFloatingIconBarGrip) {
+						// グリップが有効の場合
+						if (i == 0) {
+							// 移動用つまみ(幅を細くする)
+							iconParamsAll[i].topMargin = heightmargin;
+							iconParamsAll[i].leftMargin = widthmargin;
+						}
+						else {
+							// 2つ目以降の機能アイコン(移動ボタンの幅+残りのアイコンサイズ分ずらす)
+							iconParamsAll[i].topMargin = heightmargin;
+							iconParamsAll[i].leftMargin = widthmargin + handleThickness + (i - 1) * sizeInPx;
+						}
+					}
+					else {
+						iconParamsAll[i].topMargin = heightmargin;
+						iconParamsAll[i].leftMargin = widthmargin + i * sizeInPx;
+					}
 				}
 				imageButtons[i] = new ImageButton(activity);
 				// 色と座標を設定
@@ -9125,15 +9307,39 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				// レイアウトを取得
 				layoutParams = imageButtons[i].getLayoutParams();
 				// リサイズのピクセル数を設定
-				layoutParams.width = sizeInPx;
-				layoutParams.height = sizeInPx;
+				if (mFloatingIconBarGrip) {
+					// グリップが有効の場合
+					if (i == 0) {
+						// 移動ボタン(つまみ)のサイズ個別設定
+						if (mFloatingIconDirectionMode == 0) {
+							// 縦表示モード：幅は通常、高さのみ細く
+							layoutParams.width = sizeInPx;
+							layoutParams.height = handleThickness;
+						}
+						else {
+							// 横表示モード：幅のみ細く、高さは通常
+							layoutParams.width = handleThickness;
+							layoutParams.height = sizeInPx;
+						}
+					}
+					else {
+						// 通常の機能アイコンサイズ
+						layoutParams.width = sizeInPx;
+						layoutParams.height = sizeInPx;
+					}
+				}
+				else {
+					layoutParams.width = sizeInPx;
+					layoutParams.height = sizeInPx;
+				}
 				// 余白を設定
 				imageButtons[i].setPadding(paddingInPx, paddingInPx, paddingInPx, paddingInPx);
 				imageButtons[i].setLayoutParams(layoutParams);
 				// アイコンをリサイズする
 				imageButtons[i].setScaleType(ImageButton.ScaleType.FIT_XY);
 			}
-			int count = 0;
+			// グリップが有効の場合は1から始める
+			int count = (mFloatingIconBarGrip) ? 1 : 0;
 			// 設定を取得
 			int[] mIndex = FloatingIconEditDialog.loadToolbarIndex(this);
 			for (int i = 0; i < FloatingIconEditDialog.COMMAND_DRAWABLE.length; i++) {
@@ -9151,6 +9357,143 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 					count++;
 				}
 			}
+			// グリップが有効の場合
+			if (mFloatingIconEnable && mFloatingIconBarGrip) {
+				ImageButton moveHandle = imageButtons[0];
+				// フローティングアイコンの画像を登録
+				if (mFloatingIconDirectionMode == 0) {
+					// 縦方向
+					moveHandle.setImageResource(R.drawable.vbar);
+				}
+				else {
+					moveHandle.setImageResource(R.drawable.hbar);
+				}
+				moveHandle.setOnTouchListener(new View.OnTouchListener() {
+					// 指のタッチ開始位置
+					private float initialTouchX, initialTouchY;
+					// タッチ開始時点のつまみの実際のMargin
+					private int startMarginLeft, startMarginTop;
+					private int maxLeft;
+					private int maxTop;
+
+					@Override
+					public boolean onTouch(View v, MotionEvent event) {
+						switch (event.getAction()) {
+							case MotionEvent.ACTION_DOWN:
+								// タッチした瞬間の画面上の指の位置(絶対座標)を取得
+								initialTouchX = event.getRawX();
+								initialTouchY = event.getRawY();
+								// タッチした時点でのつまみアイコンの実際のMarginをLayoutParamsから直接取得
+								FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
+								startMarginLeft = lp.leftMargin;
+								startMarginTop = lp.topMargin;
+								return true;
+							case MotionEvent.ACTION_MOVE:
+								// 指の純粋な移動量(差分)を計算
+								float dx = event.getRawX() - initialTouchX;
+								float dy = event.getRawY() - initialTouchY;
+								// 開始時のMarginに移動量(差分)をそのまま加算する
+								int newMarginLeft = (int) (startMarginLeft + dx);
+								int newMarginTop = (int) (startMarginTop + dy);
+
+								// 画面外へ飛び出さないように画面サイズ内でクランプ
+								maxLeft = mImageView.getWidth() - sizeInPx;
+								maxTop = mImageView.getHeight() - sizeInPx;
+
+								newMarginLeft = Math.max(0, Math.min(newMarginLeft, maxLeft));
+								newMarginTop = Math.max(0, Math.min(newMarginTop, maxTop));
+								// 新しい座標をもとに全アイコンの位置を一括更新
+								updateAllIconPositions(newMarginLeft, newMarginTop);
+								return true;
+							case MotionEvent.ACTION_UP:
+								// 指が離れたら現在の座標からパーセンテージを逆算して保存
+								// 移動完了時の最新のMargin座標を計算
+								float finalDx = event.getRawX() - initialTouchX;
+								float finalDy = event.getRawY() - initialTouchY;
+								int finalLeft = (int) (startMarginLeft + finalDx);
+								int finalTop = (int) (startMarginTop + finalDy);
+								// 画面外クランプ処理
+								maxLeft = mImageView.getWidth() - sizeInPx;
+								maxTop = mImageView.getHeight() - sizeInPx;
+								finalLeft = Math.max(0, Math.min(finalLeft, maxLeft));
+								finalTop = Math.max(0, Math.min(finalTop, maxTop));
+								// 最新の最終座標を使ってパーセンテージを保存・更新
+								updatePositionPercentage(finalLeft, finalTop);
+								return true;
+						}
+						return false;
+					}
+				});
+			}
+
+		}
+	}
+
+	private void updateAllIconPositions(int newLeft, int newTop) {
+		// 基準座標を更新
+		int heightmargin;
+		int widthmargin;
+		widthmargin = newLeft;
+		heightmargin = newTop;
+		int sizeInPx = dpToPx(mFloatingIconSize + 10 + 16);
+		 // つまみの太さ(通常サイズの1/2)
+		int handleThickness = sizeInPx / 2;
+
+		for (int i = 0; i < imageButtons.length; i++) {
+			if (imageButtons[i] == null) continue;
+			FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) imageButtons[i].getLayoutParams();
+			if (mFloatingIconDirectionMode == 0) {
+				// 縦方向モード
+				if (i == 0) {
+					// 先頭：つまみアイコン
+					params.leftMargin = newLeft;
+					params.topMargin = newTop;
+				}
+				else {
+					// 2つ目以降：つまみの高さ+直前の機能アイコン分シフト
+					params.leftMargin = newLeft;
+					params.topMargin = newTop + handleThickness + (i - 1) * sizeInPx;
+				}
+			}
+			else {
+				// 横方向モード
+				if (i == 0) {
+					// 先頭：つまみアイコン
+					params.leftMargin = newLeft;
+					params.topMargin = newTop;
+				}
+				else {
+					// 2つ目以降：つまみの幅+直前の機能アイコン分シフト
+					params.leftMargin = newLeft + handleThickness + (i - 1) * sizeInPx;
+					params.topMargin = newTop;
+				}
+			}
+			// レイアウトに適用
+			imageButtons[i].setLayoutParams(params);
+		}
+	}
+
+	private void updatePositionPercentage(int currentLeft, int currentTop) {
+		int cx = mImageView.getWidth();
+		int cy = mImageView.getHeight();
+		int sizeInPx = dpToPx(mFloatingIconSize + 10 + 16);
+		int areaW = cx - sizeInPx;
+		int areaH = cy - sizeInPx;
+		if (areaW > 0 && areaH > 0) {
+			// パーセンテージを計算(0〜100)
+			int newHorizontal = (int) (((float) currentLeft / areaW) * 100);
+			int newVertical = (int) (((float) currentTop / areaH) * 100);
+			// クランプ(0%〜100%の範囲に収める)
+			newHorizontal = Math.max(0, Math.min(100, newHorizontal));
+			newVertical = Math.max(0, Math.min(100, newVertical));
+			// フィールド変数を最新値で上書きする
+			mFloatingIconHorizontal = newHorizontal;
+			mFloatingIconVertical = newVertical;
+			// SharedPreferencesへの保存処理
+			Editor ed = mSharedPreferences.edit();
+			ed.putInt(DEF.KEY_FLOATINGICONHORIZENTIAL, newHorizontal);
+			ed.putInt(DEF.KEY_FLOATINGICONVIRTICAL, newVertical);
+			ed.apply();
 		}
 	}
 
@@ -9292,7 +9635,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 				if (mPageSelect == PAGE_INPUT) {
 					// 文書情報を表示
-					mGuideView.setPageText(mImageMgr.createPageStr(mSelectPage));
+					mGuideView.setPageText(mImageMgr.createPageStr(mCurrentPage));
 					mGuideView.setPageColor(0x80000000);
 					// ページ番号入力
 					if (!PageSelectDialog.mIsOpened) {
@@ -9306,7 +9649,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 				else if (mPageSelect == PAGE_THUMB) {
 					// 文書情報を表示
-					mGuideView.setPageText(mImageMgr.createPageStr(mSelectPage));
+					mGuideView.setPageText(mImageMgr.createPageStr(mCurrentPage));
 					mGuideView.setPageColor(0x80000000);
 					// サムネイルページ選択
 					if (!PageThumbnail.mIsOpened) {
@@ -9317,6 +9660,30 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 						mThumbDlg = thumbDlg;
 					}
 				}
+				break;
+			case DEF.FLOATING_LEFTSCROLL:
+				SetTouchPanelCommandMain(DEF.TAP_TOOLBARNEXTSCROLL);
+				break;
+			case DEF.FLOATING_RIGHTSCROLL:
+				SetTouchPanelCommandMain(DEF.TAP_TOOLBARPREVSCROLL);
+				break;
+			case DEF.FLOATING_GLASSPLUS:
+				SetTouchPanelCommandMain(DEF.TAP_PINCHSCALEUP);
+				break;
+			case DEF.FLOATING_GLASSMINUS:
+				SetTouchPanelCommandMain(DEF.TAP_PINCHSCALEDOWN);
+				break;
+			case DEF.FLOATING_ZOOMRESET:
+				SetTouchPanelCommandMain(DEF.TAP_ZOOMRESET);
+				break;
+			case DEF.FLOATING_PLAYPAUSE:
+				SetTouchPanelCommandMain(DEF.TAP_ANIMEPAUSE);
+				break;
+			case DEF.FLOATING_NAVIBACK:
+				SetTouchPanelCommandMain(DEF.TAP_EXIT_VIEWER);
+				break;
+			case DEF.FLOATING_RELOAD:
+				execReloadFile(mCurrentPage);
 				break;
 		}
 	}
@@ -9536,5 +9903,14 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 			}
 		});
+	}
+
+	public static boolean getPrevNextMask() {
+		return mPrevNextMask;
+	}
+	// 画像の再読み込み
+	private void execReloadFile(int page) {
+		// バックグラウンド処理でページの再読み込みを実行
+		mImageMgr.ReloadPage(page);
 	}
 }
