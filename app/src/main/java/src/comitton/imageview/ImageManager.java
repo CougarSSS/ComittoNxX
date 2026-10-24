@@ -305,6 +305,10 @@ public class ImageManager extends InputStream implements Runnable {
 	private boolean mEnableContentsFile;
 
 	private IInArchive archive = null;
+	// archiveへ渡したIInStreamの実体への参照(SmbRandomAccessFile/RandomAccessFile/ParcelFileDescriptor等を保持).
+	// archive.close()はネイティブ側のハンドルのみ解放し、このストリームまでは閉じないため、
+	// cmpClose()で明示的に閉じないとSMB等のファイルハンドルが解放されない.
+	private IInStream mArchiveInStream = null;
 	private int numberOfItems = 0;
 	private String[] mItems;
 	private int mStart;
@@ -1204,6 +1208,8 @@ public class ImageManager extends InputStream implements Runnable {
 					}
 				}
 				if (mainStream != null) {
+					// cmpClose()で確実に閉じられるよう、archiveの成否に関わらず参照を保持しておく
+					mArchiveInStream = mainStream;
 			    // 判定したフォーマットを渡す(判定失敗時はnullが入っており自動判別される)
 				    if (!mArchiveCheck) detectedFormat = null;
 					archive = SevenZip.openInArchive(detectedFormat, mainStream);
@@ -4375,6 +4381,28 @@ public class ImageManager extends InputStream implements Runnable {
 		if (mFileType == FILETYPE_RAR) {
 			// RARの領域解放
 			CallJniLibrary.rarClose();
+		}
+		if (archive != null) {
+			// ネイティブ側の7-Zip-JBindingのアーカイブハンドルを解放する
+			// (archive.close()はここで渡したIInStreamまでは閉じないため、下記で別途閉じる)
+			try {
+				archive.close();
+			}
+			catch (Exception e) {
+				// なにもしない
+			}
+			archive = null;
+		}
+		if (mArchiveInStream != null) {
+			// SMB/ローカル/SAF経由で開いたままになっているアーカイブ本体のストリームを閉じる.
+			// これを閉じないとSMB側ではファイルがオープンされたままになり、削除等ができなくなる.
+			try {
+				mArchiveInStream.close();
+			}
+			catch (IOException e) {
+				// なにもしない
+			}
+			mArchiveInStream = null;
 		}
 	}
 
