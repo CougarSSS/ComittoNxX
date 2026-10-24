@@ -574,6 +574,7 @@
     <string name="librarySyncDone">書庫一覧を更新しました: 新規%1$d件</string>
     <string name="libraryMenuRescan">サーバー側を更新</string>
     <string name="libraryMenuPull">端末側を更新</string>
+    <string name="libraryMenuReadPositionSync">既読位置を更新</string>
     <string name="libraryRescanTriggered">サーバー側のスキャンを開始しました。完了後に「端末側を更新」を実行してください。</string>
     <string name="libraryRescanCooldown">直近でスキャン済みです。「端末側を更新」で現在のカタログを取得できます。</string>
     <string name="libraryRescanError">サーバー側のスキャンを開始できませんでした。</string>

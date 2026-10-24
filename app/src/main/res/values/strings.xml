@@ -574,6 +574,7 @@
     <string name="librarySyncDone">Library updated: %1$d new item(s)</string>
     <string name="libraryMenuRescan">Scan server now</string>
     <string name="libraryMenuPull">Update from server</string>
+    <string name="libraryMenuReadPositionSync">Update read position</string>
     <string name="libraryRescanTriggered">Server scan started. Use \"Update from server\" once it finishes.</string>
     <string name="libraryRescanCooldown">A scan already ran recently. Use \"Update from server\" to fetch the current catalog.</string>
     <string name="libraryRescanError">Could not start the server scan.</string>

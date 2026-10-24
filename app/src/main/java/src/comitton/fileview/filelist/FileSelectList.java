@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Map;
 import java.util.Random;
 
 import jp.dip.muracoro.comittonx.R;
@@ -598,6 +599,11 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 				fileList = m2FileList;
 			}
 
+			// DEF.resolvePageKey()のフォールバック(完全一致するキーが無い=未読ファイルの場合に、
+			// 同一サーバー内の全既読位置データを毎回全件スキャンする処理)を、ファイル件数の多い
+			// フォルダでも軽くするため、1回だけ事前にインデックス化して使い回す。
+			Map<String, String> pageKeyIndex = DEF.buildPageKeyIndex(mSp);
+
 			String uri = FileAccess.parent(mActivity, mPath);
 			int mMargin = ImageActivity.isDualMode();
 
@@ -654,11 +660,11 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 						}
 					}
 					if (!chkAozora) {
-						maxpage = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#maxpage", DEF.PAGENUMBER_NONE);
-						state = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+						maxpage = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#maxpage", DEF.PAGENUMBER_NONE);
+						state = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex), DEF.PAGENUMBER_UNREAD);
 						fileList.get(i).setMaxpage(maxpage);
 						if (state >= 0) { // 先頭ページでも動作するようにした
-							nowdate = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#date", DEF.PAGENUMBER_UNREAD);
+							nowdate = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#date", DEF.PAGENUMBER_UNREAD);
 							date = fileList.get(i).getDate();
 							if ((nowdate != ((date / 1000))) || (mChangeTextSize)) {
 								int openmode = 0;
@@ -742,11 +748,11 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 						}
 					}
 					if (!chkAozora) {
-						maxpage = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#maxpage", DEF.PAGENUMBER_NONE);
-						state = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+						maxpage = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#maxpage", DEF.PAGENUMBER_NONE);
+						state = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex), DEF.PAGENUMBER_UNREAD);
 						fileList.get(i).setMaxpage(maxpage);
 						if	(state >= 0)	{ // 先頭ページでも動作するようにした
-							nowdate = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#date", DEF.PAGENUMBER_UNREAD);
+							nowdate = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#date", DEF.PAGENUMBER_UNREAD);
 							date = fileList.get(i).getDate();
 							if (nowdate != ((date / 1000)))	{
 								int openmode = 0;
@@ -803,7 +809,7 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 						state = mSp.getInt(DEF.createUrl(uri, mUser, mPass) + "META-INF/container.xml", DEF.PAGENUMBER_UNREAD);
 						fileList.get(i).setMaxpage(maxpage);
 						if	(state >= 0)	{ // 先頭ページでも動作するようにした
-							nowdate = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#date", DEF.PAGENUMBER_UNREAD);
+							nowdate = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#date", DEF.PAGENUMBER_UNREAD);
 							date = fileList.get(i).getDate();
 							if ((nowdate != ((date / 1000))) || (mChangeTextSize))	{
 								int openmode = 0;
@@ -874,11 +880,11 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 						}
 					}
 					else {
-						maxpage = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#maxpage", DEF.PAGENUMBER_NONE);
-						state = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+						maxpage = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#maxpage", DEF.PAGENUMBER_NONE);
+						state = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex), DEF.PAGENUMBER_UNREAD);
 						fileList.get(i).setMaxpage(maxpage);
 						if	(state >= 0)	{ // 先頭ページでも動作するようにした
-							nowdate = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#date", DEF.PAGENUMBER_UNREAD);
+							nowdate = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#date", DEF.PAGENUMBER_UNREAD);
 							date = fileList.get(i).getDate();
 							if ((nowdate != ((date / 1000))) || (mChangeTextSize))	{
 								int openmode = 0;
@@ -923,10 +929,10 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 				}
 
 				if (fileList.get(i).getType() == FileData.FILETYPE_DIR) {
-					maxpage = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#maxpage", DEF.PAGENUMBER_NONE);
-					state = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass), DEF.PAGENUMBER_UNREAD);
+					maxpage = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#maxpage", DEF.PAGENUMBER_NONE);
+					state = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex), DEF.PAGENUMBER_UNREAD);
 					if	(state >= 0)	{ // 先頭ページでも動作するようにした
-						nowdate = mSp.getInt(DEF.resolvePageKey(mSp, uri, mUser, mPass) + "#date", DEF.PAGENUMBER_UNREAD);
+						nowdate = mSp.getInt(DEF.resolvePageKeyIndexed(mSp, uri, mUser, mPass, pageKeyIndex) + "#date", DEF.PAGENUMBER_UNREAD);
 						date = fileList.get(i).getDate();
 						if (nowdate != ((date / 1000)))	{
 							int openmode = 0;

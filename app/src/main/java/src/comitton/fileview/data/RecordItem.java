@@ -38,6 +38,11 @@ public class RecordItem {
 	private String uri;
 	private int item;
 	private int icon;
+	// 書庫管理タブ専用: 通常のファイル一覧(FileListArea)に合わせた既読状況表示・タイトル色分け。
+	// 他タブ(栞/履歴/検索等)では未設定のまま(それぞれnull/0)で、従来の表示を維持する。
+	private String readStatus;
+	private int titleColorOverride;
+	private String libraryFolderLabel;
 
 	public RecordItem() {
 		this.server = DEF.INDEX_LOCAL;
@@ -208,6 +213,30 @@ public class RecordItem {
 
 	public void setIcon(int icon) {
 		this.icon = icon;
+	}
+
+	public String getReadStatus() {
+		return readStatus;
+	}
+
+	public void setReadStatus(String readStatus) {
+		this.readStatus = readStatus;
+	}
+
+	public int getTitleColorOverride() {
+		return titleColorOverride;
+	}
+
+	public void setTitleColorOverride(int titleColorOverride) {
+		this.titleColorOverride = titleColorOverride;
+	}
+
+	public String getLibraryFolderLabel() {
+		return libraryFolderLabel;
+	}
+
+	public void setLibraryFolderLabel(String libraryFolderLabel) {
+		this.libraryFolderLabel = libraryFolderLabel;
 	}
 
 	@SuppressLint("SimpleDateFormat")
