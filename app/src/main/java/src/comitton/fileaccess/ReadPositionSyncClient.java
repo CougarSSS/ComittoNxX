@@ -113,6 +113,7 @@ public class ReadPositionSyncClient {
                 }
             }
         });
+        long perfJoinStart = System.currentTimeMillis();
         thread.start();
         try {
             // 接続+読み込みタイムアウトの合計時間より少し余裕を持たせて待つ
@@ -120,6 +121,12 @@ public class ReadPositionSyncClient {
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+        // ビューア起動のたびにこの呼び出しをブロッキングで待つため、遅延が疑われた際に
+        // 再現させず切り分けられるよう、閾値を超えた場合のみ恒常的に記録する
+        long perfJoinElapsed = System.currentTimeMillis() - perfJoinStart;
+        if (perfJoinElapsed > 500) {
+            Logcat.w(logLevel, "既読位置のサーバー問い合わせに時間がかかりました. elapsed=" + perfJoinElapsed + "ms, host=" + host + ", file=" + file);
         }
         return result[0];
     }

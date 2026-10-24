@@ -1004,6 +1004,9 @@ public class ImageManager extends InputStream implements Runnable {
 	private void cmpFileList() throws IOException {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します.");
+		// アーカイブのファイル一覧読み込みが遅いという報告の再発時に、再現させずとも
+		// ログだけで切り分けられるようにするための恒常的な計測(件数が多くなく、オーバーヘッドは軽微).
+		long perfScanStart = System.currentTimeMillis();
 
 		int thumbSortType = 0;
 		// 圧縮ファイル読み込み
@@ -1987,6 +1990,12 @@ public class ImageManager extends InputStream implements Runnable {
 		// 保存済みのテキストを読み出して解析を行う
 		CheckTextAnalysis();
 
+		long perfScanElapsed = System.currentTimeMillis() - perfScanStart;
+		// 1秒を超えた場合のみ記録(通常のキャッシュヒット時は数ms程度のため、ログを圧迫しない)
+		if (perfScanElapsed > 1000) {
+			Logcat.w(logLevel, "ファイル一覧の読み込みに時間がかかりました. elapsed=" + perfScanElapsed + "ms, count=" + count
+					+ ", mFileType=" + mFileType + ", mSkipSevenZip=" + mSkipSevenZip + ", mFilePath=" + mFilePath);
+		}
 		Logcat.d(logLevel, "終了します. mMaxCmpLength=" + mMaxCmpLength + ", mMaxOrgLength=" + mMaxOrgLength);
 	}
 
