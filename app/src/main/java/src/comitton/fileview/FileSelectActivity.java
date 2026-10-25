@@ -202,7 +202,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 
 @SuppressLint("DefaultLocale")
-public class FileSelectActivity extends AppCompatActivity implements OnTouchListener, ListNoticeListener, BookmarkListenerInterface, Handler.Callback {
+public class FileSelectActivity extends AppCompatActivity implements OnTouchListener, ListNoticeListener, BookmarkListenerInterface, Handler.Callback, SharedPreferences.OnSharedPreferenceChangeListener {
 	private static final String TAG = "FileSelectActivity";
 
 	private static final int OPERATE_NONREAD = 0;
@@ -253,6 +253,18 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private ArrayList<LibraryEntry> mLibraryDrilldownVolumes;
 	// タイトル絞り込みキーワード(空文字は絞り込み無し)
 	private String mLibraryFilterText = "";
+	// onRequestUpdate()が直前にトップレベル一覧を実際に再構築した時点の
+	// (LibraryCache.buildWorkList()の参照, mLibraryFilterText)。この2つが変化していなければ
+	// 一覧の再構築・再レイアウトを省略できる(buildWorkList()はキャッシュ未変更時に同一参照を返す)。
+	private ArrayList<LibraryCache.LibraryWork> mLibraryBuiltWorks;
+	private String mLibraryBuiltFilterText;
+	// 既読集計の非同期更新(startLibraryReadSummaryUpdate())が必要かどうか。
+	// onSharedPreferenceChanged()でSharedPreferencesに何か書き込みがあった時だけ立て、
+	// 一覧の再構築を伴わない(=作品一覧が変化していない)onRequestUpdate()で一度だけ消費する。
+	// 「何か変わった可能性がある時だけ」に絞ることで、スワイプ開始のたびに飛んでくる
+	// updateRecordList()の一括発行や、単にアプリを行き来しただけの復帰では、数秒かかる
+	// 既読集計の再計算を起動しない(実機で無条件再計算の無駄が多いことを確認済み)。
+	private boolean mLibraryReadStatusDirty = true;
 	// 書庫管理タブから開いたファイルの「次/前ファイル」をアプリ全体の書庫一覧(作品を跨ぐ)に
 	// 広げるための仮想ファイルリスト。null以外の間はsearchNextFile()がこちらを優先する。
 	// 書庫管理タブ以外からの通常操作ではonItemClick()の先頭で毎回nullに戻す。
@@ -617,6 +629,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 		applyAppTheme(mSharedPreferences);
 		SetOrientationEventListenerEnable(mSharedPreferences);
+		// 書庫管理タブの既読集計(onSharedPreferenceChanged参照)用。読書は別Activity
+		// (ImageActivity等)で行われ、既読位置はこちらがonPauseで裏に回っている間に書き込まれるため、
+		// onPauseでは登録解除せずonDestroyまで登録し続ける(重複登録は同一リスナーなら無害)。
+		mSharedPreferences.registerOnSharedPreferenceChangeListener(this);
 	}
 
 	@Override
@@ -3735,6 +3751,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	// Activityの破棄
 	protected void onDestroy() {
 		super.onDestroy();
+		mSharedPreferences.unregisterOnSharedPreferenceChangeListener(this);
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 			if (mainHandler != null) {
 				// 画面ロックのタイムアウト処理(timeoutRunnable)を取り除く
@@ -6622,6 +6639,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		ArrayList<RecordItem> list = new ArrayList<RecordItem>();
 		ArrayList<LibraryEntry> flat = LibraryCache.getEntries();
 		ArrayList<LibraryCache.LibraryWork> works = LibraryCache.buildWorkList(flat);
+		// onRequestUpdate()の再構築省略判定に使う、絞り込み前のキャッシュ参照(下でworksを絞り込み後の
+		// 一覧に差し替えるため、差し替わる前にここで控えておく)
+		ArrayList<LibraryCache.LibraryWork> unfilteredWorks = works;
 
 		if (mLibraryDrilldownWork != null) {
 			LibraryCache.LibraryWork work = null;
@@ -6729,6 +6749,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			works = filtered;
 		}
 		mLibraryFilteredWorks = works;
+		mLibraryBuiltWorks = unfilteredWorks;
+		mLibraryBuiltFilterText = mLibraryFilterText;
 
 		ArrayList<RecordItem> workItems = new ArrayList<RecordItem>();
 		for (LibraryCache.LibraryWork w : works) {
@@ -10527,6 +10549,14 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		}
 	}
 
+	// SharedPreferencesへの書き込みを検知する(onResume()から登録、onDestroy()まで解除しない)。
+	// 既読位置/栞/設定のどれが変わったかまでは区別せず、書庫管理タブの既読集計を「要再計算」に
+	// するだけの粗い合図として使う(キー単位で絞り込むより、無関係な書き込みを稀に拾う方が安全)。
+	@Override
+	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
+		mLibraryReadStatusDirty = true;
+	}
+
 	/**
 	 * 履歴系リストを最新状態にする
 	 */
@@ -10535,11 +10565,45 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		if (listtype == RecordList.TYPE_LIBRARY) {
 			// 書庫管理タブ: RecordList汎用の.dat機構は使わない(LibraryCacheが別途永続化する)ため、
 			// 他タブのcheckModified/load/BookmarkComparatorソートには乗せず専用に組み立てる。
-			Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理タブを開きました. キャッシュ件数=" + LibraryCache.getEntries().size()
-					+ ", ドリルダウン中=" + (mLibraryDrilldownWork != null ? mLibraryDrilldownWork.title : "無し")
-					+ ", フィルタ=" + mLibraryFilterText);
-			ArrayList<RecordItem> recordList = buildLibraryRecordList();
-			mListScreenView.setRecordList(list, recordList);
+			//
+			// この呼び出しは「書庫管理タブを開いた時」だけでなく、updateRecordList()が
+			// タブ切替/スワイプ開始/onActivityResult復帰のたびに全タブへ一括で発行するため、
+			// 書庫管理タブを見ていない/操作していない時にも毎回飛んでくる。実環境(1700作品超)では
+			// 一覧の再構築・再レイアウト自体に130~230ms前後かかる(計測で確認済み)ため、
+			// 内容が前回から変化していない場合はこれを省略する。
+			// ドリルダウン中(1作品の巻一覧)は件数が少なく無視できるコストのため対象外。
+			if (mLibraryDrilldownWork != null) {
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理タブを開きました(ドリルダウン中). title=" + mLibraryDrilldownWork.title);
+				ArrayList<RecordItem> recordList = buildLibraryRecordList();
+				mListScreenView.setRecordList(list, recordList);
+				mLibraryReadStatusDirty = false;
+				return;
+			}
+
+			ArrayList<LibraryCache.LibraryWork> currentWorks = LibraryCache.buildWorkList(LibraryCache.getEntries());
+			boolean catalogChanged = (currentWorks != mLibraryBuiltWorks);
+			boolean filterChanged = (mLibraryFilterText == null) ? (mLibraryBuiltFilterText != null) : !mLibraryFilterText.equals(mLibraryBuiltFilterText);
+			if (catalogChanged || filterChanged || list.getList() == null) {
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理タブを開きました. キャッシュ件数=" + LibraryCache.getEntries().size() + ", フィルタ=" + mLibraryFilterText);
+				ArrayList<RecordItem> recordList = buildLibraryRecordList();
+				mListScreenView.setRecordList(list, recordList);
+				mLibraryReadStatusDirty = false;
+				return;
+			}
+
+			// 作品一覧自体は前回から変化していないため、重い再構築・再レイアウトは省略する。
+			// ただし既読状況は読書中に裏で変わりうるので、onResume()で立てたフラグがある時だけ
+			// 既読集計を再計算する(読了後に書庫管理タブへ戻ってきた際に反映させるため)。
+			// updateRecordList()はスワイプ開始のたびにも飛んでくるが、このフラグはonResume()でしか
+			// 立たないため、スクロール/スワイプ中に数秒かかる裏スレッドを連打することはない。
+			if (mLibraryReadStatusDirty) {
+				mLibraryReadStatusDirty = false;
+				ArrayList<RecordItem> current = list.getList();
+				if (mLibraryFilteredWorks != null && current != null && current.size() == mLibraryFilteredWorks.size() + 1) {
+					ArrayList<RecordItem> items = new ArrayList<RecordItem>(current.subList(1, current.size()));
+					startLibraryReadSummaryUpdate(mLibraryFilteredWorks, items);
+				}
+			}
 			return;
 		}
 		// 履歴系リストを最新状態にする

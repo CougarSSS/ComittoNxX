@@ -318,6 +318,7 @@ public class RecordListArea extends ListArea {
 	 */
 	private void requestLayout(boolean isRefresh) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
+		long perfStart = System.currentTimeMillis();
 
 		int width = mAreaWidth;
 		int listSize = 0;
@@ -432,9 +433,15 @@ public class RecordListArea extends ListArea {
 			}
 		}
 
-		int disprange = mAreaHeight / (mTitleSize + mTitleDescent + mInfoSize + mInfoDescent + mItemMargin * 2); 
+		int disprange = mAreaHeight / (mTitleSize + mTitleDescent + mInfoSize + mInfoDescent + mItemMargin * 2);
 		// リストサイズ
 		super.setListSize(listSize, 1, listSize, disprange, isRefresh);
+
+		long perfElapsed = System.currentTimeMillis() - perfStart;
+		// 通常は数十ms未満のため、100msを超えた場合のみ記録してログを圧迫しない
+		if (perfElapsed > 100) {
+			Logcat.w(logLevel, "requestLayout: 項目のレイアウト計算に時間がかかりました. elapsed=" + perfElapsed + "ms, listSize=" + listSize + ", mListType=" + mListType);
+		}
 	}
 
 	/**
