@@ -375,18 +375,19 @@ public class RecordListArea extends ListArea {
 					if (rd.getType() == RecordItem.TYPE_IMAGE || rd.getType() == RecordItem.TYPE_IMAGEDIRECT) {
 						work = rd.getImage();
 					}
-					else if (mListType == RecordList.TYPE_LIBRARY && rd.getType() == RecordItem.TYPE_NONE) {
-						// 書庫管理タブ先頭のダミー項目: Page表記の代わりに全体の既読状況を表示する
-						String status = rd.getReadStatus();
-						work = (status != null) ? status : "";
-					}
 					else {
 						work = String.format("Page : %d (%.2f%%)", (rd.getPage() + 1), (rd.getPageRate() * 100));
 					}
 					mTitleSep[index][1] = TextFormatter.getMultiLine(work, tcx, mTitlePaint, 99);
 				}
 
-				if (rd.getType() == RecordItem.TYPE_FOLDER) {
+				if (rd.getType() == RecordItem.TYPE_FOLDER && mListType == RecordList.TYPE_LIBRARY) {
+					// 書庫管理タブのタイトルカード: そのタイトルの既読集計を1行で表示する
+					String status = rd.getReadStatus();
+					mInfoSep[index] = new String[1][];
+					mInfoSep[index][0] = TextFormatter.getMultiLine(status != null ? status : "", tcx, mInfoPaint, 1);
+				}
+				else if (rd.getType() == RecordItem.TYPE_FOLDER) {
 					mInfoSep[index] = new String[0][];
 				}
 				else if (rd.getType() == RecordItem.TYPE_SERVER) {
