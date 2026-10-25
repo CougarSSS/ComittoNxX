@@ -389,8 +389,8 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 				ed.putBoolean(DEF.KEY_CANCELFILELISTDIALOG, false);
 				ed.putBoolean(DEF.KEY_SKIPSORTFILELIST, false);
 				ed.putBoolean(DEF.KEY_EVERYTHINGBOOKMARKSYNCSET, false);
-				ed.putBoolean(DEF.KEY_RESOLVEPAGEKEY, false);
-				ed.putBoolean(DEF.KEY_LOADWITHFALLBACK, false);
+				ed.putBoolean(DEF.KEY_RESOLVEPAGEKEY, true);
+				ed.putBoolean(DEF.KEY_LOADWITHFALLBACK, true);
 				ed.putBoolean(DEF.KEY_MEMLIMITENABLE, false);
 				ed.putInt(DEF.KEY_MEMLIMIT, DEF.DEFAULT_MEMLIMIT);
 				ed.apply();
@@ -1134,13 +1134,16 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 
 	public static boolean getResolvePageKey(SharedPreferences sharedPreferences){
 		boolean flag;
-		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_RESOLVEPAGEKEY, false);
+		// この拡張子違いフォールバックはこのフォーク本来の標準動作(元は常時有効、トグル無し)なので、
+		// 未設定時のデフォルトはtrue(本家側の既定値falseにはしない)
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_RESOLVEPAGEKEY, true);
 		return flag;
 	}
 
 	public static boolean getLoadWithFallback(SharedPreferences sharedPreferences){
 		boolean flag;
-		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_LOADWITHFALLBACK, false);
+		// 同上。こちらも元は常時有効だった栞フォールバック機能
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_LOADWITHFALLBACK, true);
 		return flag;
 	}
 
