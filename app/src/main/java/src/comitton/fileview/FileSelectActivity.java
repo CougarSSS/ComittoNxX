@@ -6730,13 +6730,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		}
 		mLibraryFilteredWorks = works;
 
-		// 各タイトルの既読集計("既読: X/Y (Z%)")に使う。verifyLibraryWork()と同様、
-		// 作品ごとにServerSelect/pageKeyIndexを作り直すと重くなるため、ここで1回だけ構築する。
-		ArrayList<LibraryServerRoot> workRoots = buildLibraryServerRoots();
-		ServerSelect workServers = new ServerSelect(mSharedPreferences, this);
-		Map<String, String> workPageKeyIndex = DEF.buildPageKeyIndex(mSharedPreferences);
-		boolean workResolveKey = FileSelectActivity.getResolvePageKey();
-
+		ArrayList<RecordItem> workItems = new ArrayList<RecordItem>();
 		for (LibraryCache.LibraryWork w : works) {
 			RecordItem rd = new RecordItem();
 			rd.setType(RecordItem.TYPE_FOLDER);
@@ -6746,12 +6740,66 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			rd.setFile("");
 			rd.setDispName(w.title);
 			rd.setDate(w.latestDate);
-			LibraryWorkReadSummary summary = computeLibraryWorkReadSummary(w, workRoots, workServers, workPageKeyIndex, workResolveKey);
-			rd.setReadStatus(summary.status);
-			rd.setTitleColorOverride(summary.color);
 			list.add(rd);
+			workItems.add(rd);
 		}
+		// タイトル毎の既読集計("既読: X/Y (Z%)")はバックグラウンドで計算する。実環境では
+		// 1700作品/1万巻超の規模になり、画面遷移の度に同期計算すると数秒かかりUIが固まるため
+		// (計測で確認済み)、計算が終わった分から非同期に反映する。
+		startLibraryReadSummaryUpdate(works, workItems);
 		return list;
+	}
+
+	// buildLibraryRecordList()が直近に発行したトークン。フィルタ変更やタブ切替で一覧が
+	// 作り直された後に古い非同期集計結果が反映されてしまわないようにするためのガード。
+	private int mLibraryReadSummaryToken = 0;
+
+	// 書庫管理タブの各タイトルの既読集計をバックグラウンドで計算し、終わり次第メインスレッドで
+	// 該当RecordItem(works/workItemsは同じ並び)へ反映して再描画を要求する。
+	private void startLibraryReadSummaryUpdate(final ArrayList<LibraryCache.LibraryWork> works, final ArrayList<RecordItem> workItems) {
+		final int logLevel = Logcat.LOG_LEVEL_WARN;
+		final int token = ++mLibraryReadSummaryToken;
+		final ArrayList<LibraryServerRoot> roots = buildLibraryServerRoots();
+		final ServerSelect servers = new ServerSelect(mSharedPreferences, this);
+		final Map<String, String> pageKeyIndex = DEF.buildPageKeyIndex(mSharedPreferences);
+		final boolean resolveKey = FileSelectActivity.getResolvePageKey();
+		final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+		new Thread(new Runnable() {
+			@Override
+			public void run() {
+				long perfStart = System.currentTimeMillis();
+				int perfVolumeCount = 0;
+				for (int i = 0; i < works.size(); i++) {
+					if (token != mLibraryReadSummaryToken) {
+						// 計算中に一覧が作り直された(フィルタ変更/タブ切替等)ので中断する
+						return;
+					}
+					LibraryCache.LibraryWork w = works.get(i);
+					RecordItem rd = workItems.get(i);
+					LibraryWorkReadSummary summary = computeLibraryWorkReadSummary(w, roots, servers, pageKeyIndex, resolveKey);
+					rd.setReadStatus(summary.status);
+					rd.setTitleColorOverride(summary.color);
+					perfVolumeCount += w.volumes.size();
+				}
+
+				long perfElapsed = System.currentTimeMillis() - perfStart;
+				// 通常は数十~数百ms程度のため、300msを超えた場合のみ記録してログを圧迫しない
+				if (perfElapsed > 300) {
+					Logcat.w(logLevel, "書庫管理: タイトル毎の既読集計(非同期)に時間がかかりました. elapsed=" + perfElapsed + "ms, works=" + works.size() + ", volumes=" + perfVolumeCount);
+				}
+
+				mainHandler.post(new Runnable() {
+					@Override
+					public void run() {
+						if (token != mLibraryReadSummaryToken) {
+							return;
+						}
+						mListScreenView.notifyUpdate(RecordList.TYPE_LIBRARY);
+					}
+				});
+			}
+		}).start();
 	}
 
 	// 書庫管理タブの表示を再構築して画面に反映する
