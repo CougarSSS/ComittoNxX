@@ -6729,6 +6729,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			works = filtered;
 		}
 		mLibraryFilteredWorks = works;
+		// 先頭ダミー項目の2行目に、現在の一覧(絞り込み後)全体の既読状況を表示する
+		prompt.setReadStatus(computeLibraryReadSummary(works));
 
 		for (LibraryCache.LibraryWork w : works) {
 			RecordItem rd = new RecordItem();
@@ -7228,6 +7230,53 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		}
 		int lastSlash = trimmed.lastIndexOf('/');
 		return lastSlash >= 0 ? trimmed.substring(lastSlash + 1) : trimmed;
+	}
+
+	// 書庫管理タブ先頭のダミー項目に表示する、現在の一覧(タイトル絞り込み後)全体の
+	// 既読状況サマリ("既読: X/Y (Z%)")を組み立てる。巻ごとの状態解決はドリルダウン時の
+	// ループ(buildLibraryRecordList())と同じロジックを使い回す。実環境では巻数が
+	// 1万件を超えることがあるため、処理時間を計測し閾値超過時のみログに残す。
+	private String computeLibraryReadSummary(ArrayList<LibraryCache.LibraryWork> works) {
+		int logLevel = Logcat.LOG_LEVEL_WARN;
+		long perfStart = System.currentTimeMillis();
+
+		ArrayList<LibraryServerRoot> roots = buildLibraryServerRoots();
+		ServerSelect servers = new ServerSelect(mSharedPreferences, this);
+		Map<String, String> pageKeyIndex = DEF.buildPageKeyIndex(mSharedPreferences);
+		boolean resolveKey = FileSelectActivity.getResolvePageKey();
+
+		int total = 0;
+		int read = 0;
+		for (LibraryCache.LibraryWork w : works) {
+			for (LibraryEntry e : w.volumes) {
+				total++;
+				LibraryResolvedFile resolved = resolveLibraryFileLocation(e, roots, false);
+				if (resolved == null) {
+					continue;
+				}
+				String rootUri = servers.getURI(resolved.server);
+				String ruser = servers.getUser(resolved.server);
+				String rpass = servers.getPass(resolved.server);
+				String fileUri = DEF.relativePath(mActivity, rootUri, resolved.dirPath, resolved.fileName);
+				String key = resolveKey
+						? DEF.resolvePageKeyIndexed(mSharedPreferences, fileUri, ruser, rpass, pageKeyIndex)
+						: DEF.createUrl(fileUri, ruser, rpass);
+				int maxpage = mSharedPreferences.getInt(key + "#maxpage", DEF.PAGENUMBER_NONE);
+				int state = mSharedPreferences.getInt(key, DEF.PAGENUMBER_UNREAD);
+				if (formatLibraryReadStatus(state, maxpage).equals("100% Read.")) {
+					read++;
+				}
+			}
+		}
+
+		long perfElapsed = System.currentTimeMillis() - perfStart;
+		// 通常は数十~数百ms程度のため、1秒を超えた場合のみ記録してログを圧迫しない
+		if (perfElapsed > 1000) {
+			Logcat.w(logLevel, "書庫管理: 全体既読状況の集計に時間がかかりました. elapsed=" + perfElapsed + "ms, total=" + total);
+		}
+
+		int percent = (total > 0) ? (int) ((read * 100L) / total) : 0;
+		return String.format(getResources().getString(R.string.libraryReadSummary), read, total, percent);
 	}
 
 	// FileListArea.calcRowHeight()の既読文言判定と同じロジック(state/maxpageから

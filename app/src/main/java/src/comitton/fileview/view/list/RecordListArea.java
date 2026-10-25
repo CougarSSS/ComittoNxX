@@ -375,6 +375,11 @@ public class RecordListArea extends ListArea {
 					if (rd.getType() == RecordItem.TYPE_IMAGE || rd.getType() == RecordItem.TYPE_IMAGEDIRECT) {
 						work = rd.getImage();
 					}
+					else if (mListType == RecordList.TYPE_LIBRARY && rd.getType() == RecordItem.TYPE_NONE) {
+						// 書庫管理タブ先頭のダミー項目: Page表記の代わりに全体の既読状況を表示する
+						String status = rd.getReadStatus();
+						work = (status != null) ? status : "";
+					}
 					else {
 						work = String.format("Page : %d (%.2f%%)", (rd.getPage() + 1), (rd.getPageRate() * 100));
 					}

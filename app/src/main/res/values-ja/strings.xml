@@ -576,6 +576,7 @@
     <string name="listname07">書庫管理</string>
     <string name="libraryTapToSearch">タップして書庫管理を検索</string>
     <string name="libraryVolumeCount">%1$d巻</string>
+    <string name="libraryReadSummary">既読: %1$d/%2$d (%3$d%%)</string>
     <string name="librarySyncDone">書庫一覧を更新しました: 新規%1$d件</string>
     <string name="libraryMenuRescan">サーバー側を更新</string>
     <string name="libraryMenuPull">端末側を更新</string>

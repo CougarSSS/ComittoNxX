@@ -576,6 +576,7 @@
     <string name="listname07">Library</string>
     <string name="libraryTapToSearch">Tap to search Library titles</string>
     <string name="libraryVolumeCount">%1$d volume(s)</string>
+    <string name="libraryReadSummary">Read: %1$d/%2$d (%3$d%%)</string>
     <string name="librarySyncDone">Library updated: %1$d new item(s)</string>
     <string name="libraryMenuRescan">Scan server now</string>
     <string name="libraryMenuPull">Update from server</string>
