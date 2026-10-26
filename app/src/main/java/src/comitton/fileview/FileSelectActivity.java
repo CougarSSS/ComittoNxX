@@ -2671,14 +2671,21 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		// ファイルの検索のダイアログの表示を準備
 		Resources res = mActivity.getResources();
 		// ファイルの検索中はダイアログの表示をキャンセルさせないようにする
-		mNoneProgressDialog = new CustomNoneProgressDialog(res.getString(R.string.searchTitle), res.getString(R.string.searchfile), mHandler);
+		// mNoneProgressDialogはstaticフィールドのため、nextOpenMain()がフォルダ移動(漫画⇔
+		// Aria2c_DL等)を伴い、その移動先リストの読込完了が(キャッシュヒット等で)この呼び出しの
+		// dismiss実行前に終わってnextFileOpen()が再帰的に呼ばれると、dismiss側がstaticフィールド
+		// を読み直した時点で既に次の呼び出しが上書きした「まだshow()されていない」新しいダイアログ
+		// を指してしまい、FragmentManagerに未追加のDialogFragmentをdismissしてクラッシュする。
+		// そのため、このローカル変数でこの呼び出し自身のダイアログを固定して参照する。
+		final CustomNoneProgressDialog noneProgressDialog = new CustomNoneProgressDialog(res.getString(R.string.searchTitle), res.getString(R.string.searchfile), mHandler);
+		mNoneProgressDialog = noneProgressDialog;
 		supportFragmentManager = mActivity.getSupportFragmentManager();
 		// メイン画面で表示させるためハンドラを得る
 		mainHandler = new Handler(Looper.getMainLooper());
 		// メイン画面で表示
 		mainHandler.post(() -> {
 			// ダイアログの表示
-			mNoneProgressDialog.show(supportFragmentManager, TAG);
+			noneProgressDialog.show(supportFragmentManager, TAG);
 		});
 		ExecutorService executor = Executors.newSingleThreadExecutor();
 		Handler handler = new Handler(Looper.getMainLooper());
@@ -2698,7 +2705,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						@Override
 						public void run() {
 							mainHandler.post(() -> {
-								mNoneProgressDialog.dismissAllowingStateLoss();
+								// 既にFragmentManagerから外れている(show()未完了または既に閉じられた)
+								// 場合はdismissAllowingStateLoss()がIllegalStateExceptionで落ちるため確認する
+								if (noneProgressDialog.isAdded()) {
+									noneProgressDialog.dismissAllowingStateLoss();
+								}
 							});
 							// 次のファイルを開く(メイン)
 							result[0] = nextOpenMain(nextopen, path, file, infile, type, page, nextfile[0]);
