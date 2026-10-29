@@ -148,3 +148,9 @@ gradle-app.setting
 signingConfigs/*
 
 # End of https://www.toptal.com/developers/gitignore/api/linux,macos,windows,gradle,android
+
+# 引き継ぎ資料(ローカルのみ、GitHubには上げない)
+*引き継ぎ書*.md
+*_handoff.md
+ComittoNxX_既読位置DB仕様.md
+comic-library-tools_*.md
