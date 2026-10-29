@@ -93,6 +93,8 @@ ComittoNxX はオープンソースの画像ビュワーです.
 
 一方で、上記「追加修正点」のうち書庫管理タブの既読状況表示・巻単位の次/前ファイル移動、既読位置検索の高速化、SMBハンドル解放の修正は、本家にはまだ反映されていないこのフォーク独自の変更です.
 
+このフォークの更新履歴は [CHANGELOG.md](CHANGELOG.md) を参照してください.
+
 ## ビルド
 
 アプリをビルドするには [Git](https://git-scm.com/)、[Ninja](https://ninja-build.org/)、[Meson](https://mesonbuild.com/)、[pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)、[NASM](https://www.nasm.us/) のインストールが必要です.  
