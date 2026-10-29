@@ -2721,6 +2721,22 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		return result[0];
 	}
 
+	// 「次/前のファイルを先頭ページで開く」ために既読位置を未読に戻す。ローカルの完全一致キーだけでなく、
+	// 拡張子違い・別ディレクトリの同名記録などフォールバックで拾われうるキーもすべて消す(残すと開くときに復元される)。
+	// SMB上のファイルでは、開く際にサーバー側の既読位置がローカルより優先されるため、サーバーにも
+	// 未読(負のページは採用されない)を反映してから開く。
+	private void resetReadPositionForOpenFromTop(Editor ed, String fileName, String user, String pass) {
+		String fileUri = DEF.relativePath(mActivity, mURI, mPath, fileName);
+		int removed = DEF.removeAllPageKeysForFile(ed, mSharedPreferences, fileUri, user, pass);
+		ed.apply();
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "先頭から開くため既読位置を初期化. file=" + fileName + ", 削除した既読記録=" + removed + "件, サーバー反映="
+				+ (mServer != null && mServer.getSelect() != DEF.INDEX_LOCAL && mReadPositionSyncSet));
+		if (mServer != null && mServer.getSelect() != DEF.INDEX_LOCAL && mReadPositionSyncSet) {
+			ReadPositionSyncClient.pushPositionAndWait(mSharedPreferences, mServer.getHost(), mPath, fileName,
+					DEF.PAGENUMBER_UNREAD, DEF.PAGENUMBER_NONE, -1, -1f, 1500);
+		}
+	}
+
 	// 次のファイルを開く(メイン)
 	private boolean nextOpenMain(int nextopen, String path, String file, String infile, int type, int page, FileData nextfile) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
@@ -2788,9 +2804,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			switch (nextopen) {
 				case CloseDialog.CLICK_PREVTOP:
 				case CloseDialog.CLICK_NEXTTOP:
-					ed.remove(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, nextfile.getName()), user, pass) + "#maxpage");
-					ed.remove(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, nextfile.getName()), user, pass));
-					ed.apply();
+					resetReadPositionForOpenFromTop(ed, nextfile.getName(), user, pass);
 					break;
 
 				case CloseDialog.CLICK_PREVLAST:
@@ -2892,7 +2906,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 				case CloseDialog.CLICK_BOOKMARK:
 				case CloseDialog.CLICK_HISTORY:
-					if (!file.isEmpty()) {
+					if (page == DEF.PAGENUMBER_UNREAD && !file.isEmpty() && !FileData.isText(infile) && !FileData.isEpubSub(infile)) {
+						// 先頭ページから開く指定(書庫管理の巻またぎ等)。サーバー側の既読位置も未読に戻す
+						resetReadPositionForOpenFromTop(ed, file, user, pass);
+					}
+					else if (!file.isEmpty()) {
 						if (FileData.isText(infile) || FileData.isEpubSub(infile)) {
 							ed.putInt(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, file), user, pass) + infile, page);
 						}
