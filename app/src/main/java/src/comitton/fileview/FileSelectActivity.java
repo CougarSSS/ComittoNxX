@@ -2807,10 +2807,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			switch (nextopen) {
 				case CloseDialog.CLICK_PREVTOP:
 				case CloseDialog.CLICK_NEXTTOP:
+					// 既読位置は消さず、開く側(ImageActivity)で無視させて先頭ページから開く
 					markOpenFromTop(nextfile.getName());
-					ed.remove(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, nextfile.getName()), user, pass) + "#maxpage");
-					ed.remove(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, nextfile.getName()), user, pass));
-					ed.apply();
 					break;
 
 				case CloseDialog.CLICK_PREVLAST:
@@ -2913,10 +2911,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				case CloseDialog.CLICK_BOOKMARK:
 				case CloseDialog.CLICK_HISTORY:
 					if (page == DEF.PAGENUMBER_UNREAD && !file.isEmpty() && !FileData.isText(infile) && !FileData.isEpubSub(infile)) {
-						// 先頭ページから開く指定(書庫管理の巻またぎ等)
+						// 先頭ページから開く指定(書庫管理の巻またぎ等)。既読位置は書き換えず、開く側で無視させる
 						markOpenFromTop(file);
 					}
-					if (!file.isEmpty()) {
+					else if (!file.isEmpty()) {
 						if (FileData.isText(infile) || FileData.isEpubSub(infile)) {
 							ed.putInt(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, file), user, pass) + infile, page);
 						}
@@ -10169,6 +10167,16 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			updateListView();
 			threadstartcheck = true;
 			mNowItem = -1;
+		}
+		if (mNowItem != -1 && mOperate[mNowItem] == OPERATE_FIRST
+				&& (mFileData.getType() == FileData.FILETYPE_ARC || mFileData.getType() == FileData.FILETYPE_PDF)) {
+			// 先頭から読む(画像ビューアで開くファイル): 既読位置は消さず、開く側で無視させる
+			markOpenFromTop(mFileData.getName());
+			threadstartcheck = true;
+			releaseThumbnail();
+			openFile(mFileData, "");
+			mNowItem = -1;
+			return;
 		}
 		if (mNowItem != -1 && (mOperate[mNowItem] == OPERATE_NONREAD || mOperate[mNowItem] == OPERATE_FIRST)) {
 			// 未読/先頭ページを開く
