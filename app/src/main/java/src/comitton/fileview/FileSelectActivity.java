@@ -7007,11 +7007,16 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	// 書庫管理タブの作品(またはドリルダウン中の巻)長押しメニュー。対象作品の存在確認を行う
 	private void showLibraryLongClickDialog(int listpos) {
 		final LibraryCache.LibraryWork target;
+		// ドリルダウン中に長押しされた巻(作品一覧からの長押しではnull)
+		final LibraryEntry volume;
 		if (mLibraryDrilldownWork != null) {
 			if (listpos <= 0) {
 				return;
 			}
 			target = mLibraryDrilldownWork;
+			int volIndex = listpos - 1;
+			volume = (mLibraryDrilldownVolumes != null && volIndex < mLibraryDrilldownVolumes.size())
+					? mLibraryDrilldownVolumes.get(volIndex) : null;
 		}
 		else {
 			int workIndex = listpos - 1;
@@ -7019,13 +7024,35 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				return;
 			}
 			target = mLibraryFilteredWorks.get(workIndex);
+			volume = null;
 		}
 		Resources res = getResources();
-		final String[] items = { res.getString(R.string.libraryMenuVerify) };
+		final ArrayList<String> itemList = new ArrayList<String>();
+		itemList.add(res.getString(R.string.libraryMenuVerify));
+		if (volume != null) {
+			itemList.add(res.getString(R.string.ope00)); // 未読にする
+			itemList.add(res.getString(R.string.ope01)); // 既読にする
+			itemList.add(res.getString(R.string.ope10)); // 先頭ページを開く
+		}
+		final String[] items = itemList.toArray(new String[0]);
 		mListDialog = new ListDialog(this, R.style.MyDialog, target.title, items, -1, new ListSelectListener() {
 			@Override
 			public void onSelectItem(int item) {
-				verifyLibraryWork(target);
+				switch (item) {
+					case 1:
+						setLibraryVolumeReadState(volume, false);
+						break;
+					case 2:
+						setLibraryVolumeReadState(volume, true);
+						break;
+					case 3:
+						setLibraryVolumeReadState(volume, false);
+						openLibraryVolume(volume);
+						break;
+					default:
+						verifyLibraryWork(target);
+						break;
+				}
 			}
 
 			@Override
@@ -7034,6 +7061,57 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			}
 		});
 		mListDialog.show();
+	}
+
+	// 書庫管理タブの巻1つを既読/未読にする(通常のファイル長押しメニューの「既読にする/未読にする」と
+	// 同じ保存形式)。SMBサーバー上のファイルは、開く際にサーバー側の既読位置が優先されて元に
+	// 戻ってしまうため、サーバーへも反映する(負のページは開く際に採用されないので未読は-1を送る)。
+	private void setLibraryVolumeReadState(LibraryEntry volume, boolean read) {
+		if (volume == null) {
+			return;
+		}
+		LibraryResolvedFile resolved = resolveLibraryFileLocation(volume);
+		if (resolved == null) {
+			Toast.makeText(mActivity, getResources().getString(R.string.everythingSearchNoServer), Toast.LENGTH_LONG).show();
+			return;
+		}
+		ServerSelect servers = new ServerSelect(mSharedPreferences, this);
+		String user = servers.getUser(resolved.server);
+		String pass = servers.getPass(resolved.server);
+		String fileUri = DEF.relativePath(mActivity, servers.getURI(resolved.server), resolved.dirPath, resolved.fileName);
+		String exactKey = DEF.createUrl(fileUri, user, pass);
+		// 表示側(拡張子違いフォールバック)が拾っている既存キー
+		String shownKey = DEF.resolvePageKey(mSharedPreferences, fileUri, user, pass);
+		int maxpage = mSharedPreferences.getInt(shownKey + "#maxpage", DEF.PAGENUMBER_NONE);
+
+		Editor ed = mSharedPreferences.edit();
+		int pushPage;
+		int pushMaxpage;
+		if (read) {
+			// 最大ページ数が分かっていれば最終ページ、不明なら既読フラグ(アーカイブを開く重い処理は避ける)
+			int value = (maxpage > 0) ? maxpage : DEF.PAGENUMBER_READ;
+			ed.putInt(exactKey, value);
+			ed.putInt(exactKey + "#maxpage", value);
+			ed.putInt(exactKey + "#date", (int) volume.getDateModified());
+			pushPage = value;
+			pushMaxpage = (maxpage > 0) ? maxpage : DEF.PAGENUMBER_NONE;
+		}
+		else {
+			for (String key : new String[] { exactKey, shownKey }) {
+				ed.remove(key);
+				ed.remove(key + "#maxpage");
+				ed.remove(key + "#date");
+			}
+			pushPage = DEF.PAGENUMBER_UNREAD;
+			pushMaxpage = DEF.PAGENUMBER_NONE;
+		}
+		ed.apply();
+
+		if (resolved.server != DEF.INDEX_LOCAL && mReadPositionSyncSet) {
+			ReadPositionSyncClient.pushPosition(mSharedPreferences, servers.getHost(resolved.server),
+					resolved.dirPath, resolved.fileName, pushPage, pushMaxpage, -1, -1f);
+		}
+		refreshLibraryList();
 	}
 
 	// 作品の各巻が実際にSMB上に存在するか確認し、存在しない巻をキャッシュから削除する。
