@@ -197,24 +197,6 @@ public class ReadPositionSyncClient {
         startPush(sp, host, path, file, page, maxpage, chapter, pagerate);
     }
 
-    /**
-     * pushPosition()と同じだが、送信完了(またはtimeoutMs経過)まで呼び出し元を待たせる。
-     * 直後にファイルを開く際のサーバー問い合わせより先に反映を済ませたい場合(先頭から開き直す等)に使う。
-     */
-    public static void pushPositionAndWait(final SharedPreferences sp, final String host, final String path, final String file,
-                                            final int page, final int maxpage, final int chapter, final float pagerate, long timeoutMs) {
-        Thread thread = startPush(sp, host, path, file, page, maxpage, chapter, pagerate);
-        if (thread == null) {
-            return;
-        }
-        try {
-            thread.join(timeoutMs);
-        }
-        catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     private static Thread startPush(final SharedPreferences sp, final String host, final String path, final String file,
                                      final int page, final int maxpage, final int chapter, final float pagerate) {
         if (host == null || host.isEmpty() || file == null || file.isEmpty() || !isConfigured(sp)) {

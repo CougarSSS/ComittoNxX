@@ -4920,36 +4920,6 @@ public class DEF {
 	}
 
 	/**
-	 * {@link #resolvePageKey}のフォールバックで同じファイルとして拾われうる既読記録(同一サーバー内で
-	 * ファイル名が一致、アーカイブ拡張子は無視)を、"#maxpage"/"#date"を含めてすべて削除する。
-	 * 完全一致のキーだけを消しても、拡張子違いや別ディレクトリの同名記録が復元されてしまうため、
-	 * 「未読に戻す」際に使う。削除したキー数を返す。
-	 */
-	public static int removeAllPageKeysForFile(SharedPreferences.Editor ed, SharedPreferences prefs, String url, String user, String pass) {
-		String exactKey = createUrl(url, user, pass);
-		String targetBase = stripArchiveExt(fileNameOfUrl(url));
-		String targetRoot = rootOfUrl(exactKey);
-		java.util.Set<String> bases = new java.util.HashSet<String>();
-		bases.add(exactKey);
-		if (!targetBase.isEmpty()) {
-			for (String key : prefs.getAll().keySet()) {
-				if (key.endsWith("#maxpage") || key.endsWith("#date") || !key.startsWith(targetRoot)) {
-					continue;
-				}
-				if (stripArchiveExt(fileNameOfUrl(key)).equals(targetBase)) {
-					bases.add(key);
-				}
-			}
-		}
-		for (String key : bases) {
-			ed.remove(key);
-			ed.remove(key + "#maxpage");
-			ed.remove(key + "#date");
-		}
-		return bases.size();
-	}
-
-	/**
 	 * 既読ページ位置を取得する({@link #resolvePageKey}のフォールバック込み)。
 	 * "#maxpage"/"#date"のような付随データを伴わない単純な参照(ビューア起動時の再開ページ等)向け。
 	 */
