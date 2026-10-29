@@ -1026,10 +1026,16 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		Logcat.d(logLevel, "既読位置を取得します.");
 		mRestorePage = DEF.getPageWithFallback(mSharedPreferences, mFilePath, mUser, mPass);
 		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
+		// 「先頭ページで開く」指定(次/前のファイルを先頭で開く等)では、ローカル/サーバーの既読位置を無視する
+		boolean openFromTop = FileSelectActivity.consumeOpenFromTop(mFileName);
+		if (openFromTop) {
+			Logcat.d(logLevel, "先頭ページ指定のため既読位置を無視します.");
+			mRestorePage = DEF.PAGENUMBER_UNREAD;
+		}
 
 		// サーバー同期が有効なSMBサーバー上のファイルであれば、開く前にサーバー側の既読位置を問い合わせて
 		// ローカルより優先する(「サーバー側と同期してから開く」仕様)
-		if (mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && mReadPositionSyncSet) {
+		if (!openFromTop && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && mReadPositionSyncSet) {
 			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
 			ReadPositionSyncClient.Position remotePosition =
 					ReadPositionSyncClient.getRemotePosition(mSharedPreferences, syncHost, mPath, mFileName);

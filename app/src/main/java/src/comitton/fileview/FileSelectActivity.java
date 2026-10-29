@@ -2693,6 +2693,25 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		return result[0];
 	}
 
+	// 「先頭ページで開く」指定のファイル名と指定時刻。ImageActivityが開く際に参照し、
+	// ローカル/サーバーの既読位置を無視して先頭ページから開く(既読記録自体は消さない)。
+	private static String sOpenFromTopFile;
+	private static long sOpenFromTopTime;
+
+	private static void markOpenFromTop(String fileName) {
+		sOpenFromTopFile = fileName;
+		sOpenFromTopTime = System.currentTimeMillis();
+	}
+
+	// 指定ファイルが「先頭ページで開く」指定されていれば true を返し、指定を解除する。
+	// 画像ビューア以外が開かれた場合に指定が残って後の別の操作に効かないよう、10秒で失効させる。
+	public static boolean consumeOpenFromTop(String fileName) {
+		boolean match = sOpenFromTopFile != null && sOpenFromTopFile.equals(fileName)
+				&& System.currentTimeMillis() - sOpenFromTopTime < 10000;
+		sOpenFromTopFile = null;
+		return match;
+	}
+
 	// 次のファイルを開く(メイン)
 	private boolean nextOpenMain(int nextopen, String path, String file, String infile, int type, int page, FileData nextfile) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
@@ -2746,9 +2765,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			switch (nextopen) {
 				case CloseDialog.CLICK_PREVTOP:
 				case CloseDialog.CLICK_NEXTTOP:
-					ed.remove(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, nextfile.getName()), user, pass) + "#maxpage");
-					ed.remove(DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, nextfile.getName()), user, pass));
-					ed.apply();
+					// 既読位置は消さず、開く側(ImageActivity)で無視させて先頭ページから開く
+					markOpenFromTop(nextfile.getName());
 					break;
 
 				case CloseDialog.CLICK_PREVLAST:
@@ -9754,6 +9772,16 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			updateListView();
 			threadstartcheck = true;
 			mNowItem = -1;
+		}
+		if (mNowItem != -1 && mOperate[mNowItem] == OPERATE_FIRST
+				&& (mFileData.getType() == FileData.FILETYPE_ARC || mFileData.getType() == FileData.FILETYPE_PDF)) {
+			// 先頭から読む(画像ビューアで開くファイル): 既読位置は消さず、開く側で無視させる
+			markOpenFromTop(mFileData.getName());
+			threadstartcheck = true;
+			releaseThumbnail();
+			openFile(mFileData, "");
+			mNowItem = -1;
+			return;
 		}
 		if (mNowItem != -1 && (mOperate[mNowItem] == OPERATE_NONREAD || mOperate[mNowItem] == OPERATE_FIRST)) {
 			// 未読/先頭ページを開く
