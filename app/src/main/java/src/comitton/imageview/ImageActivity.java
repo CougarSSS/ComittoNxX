@@ -1023,9 +1023,9 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 		saveLastFile();
 
-		Logcat.d(logLevel, "既読位置を取得します.");
-		mRestorePage = DEF.getPageWithFallback(mSharedPreferences, mFilePath, mUser, mPass);
 		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
+		Logcat.d(logLevel, "既読位置を取得します.");
+		mRestorePage = (!mReadPositionSyncSet) ? mSharedPreferences.getInt(DEF.createUrl(mFilePath, mUser, mPass), DEF.PAGENUMBER_UNREAD) : DEF.getPageWithFallback(mSharedPreferences, mFilePath, mUser, mPass);
 		// 「先頭ページで開く」指定(次/前のファイルを先頭で開く等)では、ローカル/サーバーの既読位置を無視する
 		boolean openFromTop = FileSelectActivity.consumeOpenFromTop(mFileName);
 		if (openFromTop) {

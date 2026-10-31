@@ -40,15 +40,27 @@ import src.comitton.common.EpubWebViewSharedData;
 import src.comitton.common.CustomKeySharedData;
 import src.comitton.common.DialogSharedData;
 import src.comitton.common.TappatternSharedData;
+import src.comitton.config.PreferenceScannerHelper;
+import src.comitton.config.SetBookShelfActivity;
 import src.comitton.config.SetBookmarkSyncActivity;
+import src.comitton.config.SetCacheActivity;
+import src.comitton.config.SetCornerEndEpubWebViewActivity;
+import src.comitton.config.SetCornerEndImageViewerActivity;
+import src.comitton.config.SetCornerEndTextViewerActivity;
+import src.comitton.config.SetCustomUrlSchemeActivity;
 import src.comitton.config.SetEverythingActivity;
 import src.comitton.config.SetHardwareEpubWebViewKeyActivity;
 import src.comitton.config.SetHardwareFileListKeyActivity;
+import src.comitton.config.SetHardwareSelectKeyActivity;
+import src.comitton.config.SetImageDetailActivity;
 import src.comitton.config.SetImageTextColorActivity;
+import src.comitton.config.SetMarginCutActivity;
 import src.comitton.config.SetNoiseActivity;
+import src.comitton.config.SetSortActivity;
 import src.comitton.config.SetTextActivity;
 import src.comitton.config.SetImageTextDetailActivity;
 import src.comitton.config.SetCommonActivity;
+import src.comitton.config.SetThemeActivity;
 import src.comitton.config.SetWebServerActivity;
 import src.comitton.config.SetWebViewActivity;
 import src.comitton.dialog.CustomNoneProgressDialog;
@@ -501,6 +513,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private static boolean mWebServerEnable = false;
 	private static boolean mWebServerIcon = false;
 	private boolean isSelfRestarting = false;
+	private static boolean mSearchSettingIcon;
 
 	public static final int FILESORT_NONE = 0;
 	public static final int FILESORT_NAME_UP = 1;
@@ -720,6 +733,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				// サーバー選択が有効だった場合
 				if (mServer.select(serverSelect)) {
 					mURI = mServer.getURI();
+					setServerPortPassiveMode(mServer);
 				}
 			}
 			else if (server != null && !server.isEmpty()) {
@@ -727,6 +741,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				if (mServer.select(server)) {
 					// サーバー名が有効だった場合
 					mURI = mServer.getURI();
+					setServerPortPassiveMode(mServer);
 				}
 				else {
 					// サーバー名が無効だった場合はファイルパスをnullにする
@@ -741,6 +756,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				mServer.select(DEF.INDEX_LOCAL);
 				mPath = mServer.getPath();
 				mURI = mServer.getURI();
+				setServerPortPassiveMode(mServer);
 			}
 		}
 	}
@@ -855,6 +871,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						else if (data.mCode == null || data.mCode.length() <= 0) {
 							mServer.select(DEF.INDEX_LOCAL);
 							uri = "";
+							setServerPortPassiveMode(mServer);
 						}
 						else {
 							if (!mServer.select(data.mCode)) {
@@ -863,6 +880,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 								return;
 							}
 							uri = mServer.getURI();
+							setServerPortPassiveMode(mServer);
 						}
 						moveFileSelect(uri, data.mPath, data.mTopIndex, false);
 						mExitBackTimer = 0;
@@ -891,6 +909,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		// 回転時など保存しておいた情報
 		mServer = new ServerSelect(mSharedPreferences, this);
 		mServer.select(DEF.INDEX_LOCAL);
+		setServerPortPassiveMode(mServer);
 		RecordList.setContext(this);
 
 		try {
@@ -933,6 +952,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					mServer.select(DEF.INDEX_LOCAL);
 					mURI = mServer.getURI();
 					mPath = path.substring(0, path.lastIndexOf('/') + 1);
+					setServerPortPassiveMode(mServer);
 					FileData fileData = new FileData(mActivity, path.substring(path.lastIndexOf('/') + 1));
 					Logcat.d(logLevel, "Intent解析中. mPath=" + mPath + ", name=" + fileData.getName());
 
@@ -1004,11 +1024,13 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					// サーバー選択なし
 					serverSelect = -1;
 					mServer.select(DEF.INDEX_LOCAL);
+					setServerPortPassiveMode(mServer);
 				}
 				else {
 					// サーバー選択あり
 					serverSelect = Integer.parseInt(serverselect);
 					mServer.select(serverSelect);
+					setServerPortPassiveMode(mServer);
 				}
 				Logcat.d(logLevel, "fileopen カスタムURLスキームから起動. path=" + path + ", serverSelect=" + serverSelect);
 				if (path == null || path.isEmpty()) {
@@ -1098,12 +1120,14 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			// サーバー選択が有効だった場合
 			if (mServer.select(serverSelect)) {
 				mURI = mServer.getURI();
+				setServerPortPassiveMode(mServer);
 			}
 		} else if (server != null && !server.isEmpty()) {
 			// サーバー名が設定されていれば
 			if (mServer.select(server)) {
 				// サーバー名が有効だった場合
 				mURI = mServer.getURI();
+				setServerPortPassiveMode(mServer);
 			} else {
 				// サーバー名が無効だった場合はファイルパスを空白にする
 				mPath = "";
@@ -1125,6 +1149,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			// URIとパスを選択
 			mPath = restorePaths.get(restoreCurrentItem);
 			mURI = restoreUris.get(restoreCurrentItem);
+			setServerPortPassiveMode(mServer);
 		}
 		else if (mTabMode && mTabRestore) {
 			// タブが有効で復元が有効の場合
@@ -1142,6 +1167,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					// URIとパスを選択
 					mPath = paths.optString(CurrentItem, "");
 					mURI = uris.optString(CurrentItem, "");
+					setServerPortPassiveMode(mServer);
 				}
 				catch (Exception e) {
 					e.printStackTrace();
@@ -1177,6 +1203,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			mServer.select(DEF.INDEX_LOCAL);
 			mURI = mServer.getURI();
 			mPath = mServer.getPath();
+			setServerPortPassiveMode(mServer);
 		}
 
 		if (mServer.getSelect() == DEF.INDEX_LOCAL && "/".equals(mPath)) {
@@ -1641,6 +1668,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				mServer.select(adapter.getTabServerSelect(currentPosition));
 				String path = adapter.getTabPath(currentPosition);
 				String uri = adapter.getTabUri(currentPosition);
+				setServerPortPassiveMode(mServer);
 				// タイトルを表示
 				mListScreenView.setListTitle(RecordList.TYPE_FILELIST, "[" + mServer.getName() + "]", mPath);
 				// ソート状態を設定
@@ -1834,6 +1862,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				mServer.select(adapter.getTabServerSelect(position));
 				String uri = adapter.getTabUri(position);
 				String path = adapter.getTabPath(position);
+				setServerPortPassiveMode(mServer);
 				if (path != null && !path.isEmpty()) {
 					// パスの移動
 					moveFileSelectProc(uri, path, false);
@@ -2685,13 +2714,15 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		// メイン画面で表示
 		mainHandler.post(() -> {
 			// ダイアログの表示
-			noneProgressDialog.show(supportFragmentManager, TAG);
-		});
-		ExecutorService executor = Executors.newSingleThreadExecutor();
-		Handler handler = new Handler(Looper.getMainLooper());
-		executor.execute(new Runnable() {
-			@Override
-			public void run() {
+			try {
+				noneProgressDialog.show(supportFragmentManager, TAG);
+			}
+			catch (Exception e) {
+				Logcat.e(logLevel, "Failed to show progress dialog: " + e.getMessage(), e);
+			}
+			// ダイアログ表示後にバックグラウンドスレッドで検索を実行
+			ExecutorService executor = Executors.newSingleThreadExecutor();
+			executor.execute(() -> {
 				try {
 					// 次のファイル検索
 					nextfile[0] = searchNextFile(nextFileBaseList, file, nextopen);
@@ -2701,22 +2732,36 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				}
 				finally {
 					// 処理が完了したらメインスレッドに戻してダイアログを閉じる
-					handler.post(new Runnable() {
-						@Override
-						public void run() {
-							mainHandler.post(() -> {
-								// 既にFragmentManagerから外れている(show()未完了または既に閉じられた)
-								// 場合はdismissAllowingStateLoss()がIllegalStateExceptionで落ちるため確認する
-								if (noneProgressDialog.isAdded()) {
-									noneProgressDialog.dismissAllowingStateLoss();
-								}
-							});
-							// 次のファイルを開く(メイン)
-							result[0] = nextOpenMain(nextopen, path, file, infile, type, page, nextfile[0]);
+					mainHandler.post(() -> {
+						try {
+							if (noneProgressDialog.isAdded() && noneProgressDialog.isVisible()) {
+								noneProgressDialog.dismissAllowingStateLoss();
+							}
+							else {
+								// 万が一isAddedがまだの場合のフォールバック
+								noneProgressDialog.dismissAllowingStateLoss();
+							}
 						}
+						catch (Exception e) {
+							Logcat.e(logLevel, "Failed to dismiss progress dialog: " + e.getMessage(), e);
+						}
+						// nextOpenMain(ネットワークアクセスを含む可能性があるため別スレッドで実行)
+						ExecutorService openExecutor = Executors.newSingleThreadExecutor();
+						openExecutor.execute(() -> {
+							try {
+								// バックグラウンドで安全に実行
+								boolean openResult = nextOpenMain(nextopen, path, file, infile, type, page, nextfile[0]);
+								mainHandler.post(() -> {
+									result[0] = openResult;
+								});
+							}
+							catch (Exception e) {
+								Logcat.e(logLevel, "Failed in nextOpenMain background execution: " + e.getMessage(), e);
+							}
+						});
 					});
 				}
-			}
+			});
 		});
 		return result[0];
 	}
@@ -3085,6 +3130,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		mLoadWithFallback = SetFileListActivity.getLoadWithFallback(mSharedPreferences);
 		mWebServerStart = SetWebServerActivity.getWebServerStart(mSharedPreferences);
 		mWebServerIcon = SetWebServerActivity.getWebServerIcon(mSharedPreferences);
+		mSearchSettingIcon = SetFileListActivity.getSearchSettingIcon(mSharedPreferences);
 
 		if (!mListRotaChg) {
 			// 手動で切り替えていない
@@ -3468,6 +3514,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					else if (data.mCode == null || data.mCode.length() <= 0) {
 						mServer.select(DEF.INDEX_LOCAL);
 						uri = "";
+						setServerPortPassiveMode(mServer);
 					}
 					else {
 						if (!mServer.select(data.mCode)) {
@@ -3475,6 +3522,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 							break;
 						}
 						uri = mServer.getURI();
+						setServerPortPassiveMode(mServer);
 					}
 					moveFileSelect(uri, data.mPath, data.mTopIndex, false);
 					mExitBackTimer = 0;
@@ -3681,6 +3729,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 							else if (data.mCode == null || data.mCode.length() <= 0) {
 								mServer.select(DEF.INDEX_LOCAL);
 								uri = "";
+								setServerPortPassiveMode(mServer);
 							}
 							else {
 								if (!mServer.select(data.mCode)) {
@@ -3688,6 +3737,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 									return true;
 								}
 								uri = mServer.getURI();
+								setServerPortPassiveMode(mServer);
 							}
 							moveFileSelect(uri, data.mPath, data.mTopIndex, false);
 							mExitBackTimer = 0;
@@ -4284,7 +4334,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				int serverindex = mSelectRecord.getServer(); // サーバーのキーインデックス
 				mEditServerDialog = new EditServerDialog(mActivity, R.style.MyDialog, serverindex, new EditServerDialog.SearchListener() {
 					@Override
-					public void onSearch(int accessType, String name, String host, String user, String pass, String path, String provider, String dispName) {
+					public void onSearch(int accessType, String name, String host, String user, String pass, String path, String provider, String dispName, boolean pasv, String port) {
 						int listtype = RecordList.TYPE_SERVER;
 						// リストのデータを更新
 						mSelectRecord.setAccessType(accessType);
@@ -4295,6 +4345,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						mSelectRecord.setPath(path);
 						mSelectRecord.setProvider(provider);
 						mSelectRecord.setDispName(dispName);
+						mSelectRecord.setPasv(pasv);
+						mSelectRecord.setPort(port);
 
 						ArrayList<RecordItem> recordList = mListScreenView.getList(listtype);
 						RecordList.update(recordList, listtype);
@@ -5206,6 +5258,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					case DEF.TOOLBAR_WEB_SHARING:
 						showDialog(DEF.MESSAGE_WEBSHAREICON);
 						break;
+					case DEF.TOOLBAR_SEARCHSETTING:
+						// 設定を検索した結果でタップした項目へジャンプする
+						setPreferenceScannerHelper();
+						break;
 					case DEF.TOOLBAR_EXIT:
 						// アプリ終了
 						finishApplication();
@@ -5718,16 +5774,33 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						break;
 
 					case OPERATE_DELCACHE: // サムネイルキャッシュ削除
-						ThumbnailLoader.deleteThumbnailCache(DEF.relativePath(mActivity, mURI, mPath, mFileData.getName()), mThumbSizeW, mThumbSizeH);
-						// イメージ取得をスキップさせるためのマーキング情報を解除
-						String path = DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, mFileData.getName()), mServer.getUser(), mServer.getPass());
-						Editor ed = mSharedPreferences.edit();
-						ed.remove(path + "#noimage");
-						ed.apply();
-						// サムネイル解放
-						releaseThumbnail();
-						// サムネイルを読み直す
-						loadThumbnail(true);
+						new Thread(new Runnable() {
+							@Override
+							public void run() {
+								try {
+									// キャッシュの削除
+									ThumbnailLoader.deleteThumbnailCache(DEF.relativePath(mActivity, mURI, mPath, mFileData.getName()), mThumbSizeW, mThumbSizeH);
+									// イメージ取得をスキップさせるためのマーキング情報の解除
+									String path = DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, mFileData.getName()), mServer.getUser(), mServer.getPass());
+									Editor ed = mSharedPreferences.edit();
+									ed.remove(path + "#noimage");
+									ed.apply();
+									// サムネイル解放と再読み込みはUIスレッド(またはスレッドセーフなハンドラー)経由で実行する
+									mActivity.runOnUiThread(new Runnable() {
+										@Override
+										public void run() {
+											// サムネイル解放
+											releaseThumbnail();
+											// サムネイルを読み直す
+											loadThumbnail(true);
+										}
+									});
+								}
+								catch (Exception e) {
+									Logcat.e(logLevel, "Delete cache error: " + e.getMessage());
+								}
+							}
+						}).start();
 						break;
 
 					case OPERATE_SETTHUMBASDIR:		// 親ディレクトリのサムネイルとして設定
@@ -6448,6 +6521,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 		mServer = server;
 		mServer.select(serverindex);
+		setServerPortPassiveMode(mServer);
 
 		if (mTabMode) {
 			int currentPosition = viewPager.getCurrentItem();
@@ -6485,10 +6559,23 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			Logcat.v(logLevel, "return false");
 			return false;
 		}
+		if (server.getAccesType() == DEF.ACCESS_TYPE_FTP && uri.equalsIgnoreCase("ftp://")) {
+			Logcat.v(logLevel, "return false");
+			return false;
+		}
+		if (server.getAccesType() == DEF.ACCESS_TYPE_FTPS && uri.equalsIgnoreCase("ftps://")) {
+			Logcat.v(logLevel, "return false");
+			return false;
+		}
+		if (server.getAccesType() == DEF.ACCESS_TYPE_SFTP && uri.equalsIgnoreCase("sftp://")) {
+			Logcat.v(logLevel, "return false");
+			return false;
+		}
 		// 移動
 		moveFileSelectProc(uri, path, true);
 
 		mServer = server;
+		setServerPortPassiveMode(mServer);
 
 		// リスト再ロード
 		loadListView();
@@ -11300,4 +11387,23 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	public static boolean getWebServerIcon() {
 		return mWebServerIcon;
 	}
+	public static boolean getSearchSettingIcon() {
+		return mSearchSettingIcon;
+	}
+	private void setServerPortPassiveMode(ServerSelect server) {
+		FileAccess.setServerPort(server.getPort());
+		FileAccess.setPassiveMode(server.getPasv());
+	}
+	// 設定を検索した結果でタップした項目へスクロール移動させる
+	private void setPreferenceScannerHelper() {
+		PreferenceScannerHelper.showPreferenceScanDialog(this, (selectedKey, activityClass) -> {
+			Intent intent = new Intent(this, activityClass);
+			// どの項目にスクロール移動するかを渡す
+			if (intent != null) {
+				intent.putExtra("target_key", selectedKey);
+				startActivity(intent);
+			}
+		});
+	}
+
 }

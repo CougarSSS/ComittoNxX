@@ -451,7 +451,12 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 						}
 						mMultiThread.sleep(10);
 					}
-				} catch (Exception e) {
+				}
+				catch (Exception e) {
+				}
+				// アクティビティがすでに終了している場合はここで処理を中断
+				if (mActivity == null || mActivity.isFinishing() || mActivity.isDestroyed()) {
+					return;
 				}
 				// ファイルリスト読み込みダイアログの表示を準備
 				Resources res = mActivity.getResources();
@@ -465,10 +470,19 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 				mainHandler = new Handler(Looper.getMainLooper());
 				// メイン画面で表示
 				mainHandler.post(() -> {
-					// ダイアログの表示
-					mProgressDialog.show(supportFragmentManager, TAG);
-					// プログレスバーをリセット
-					mProgressDialog.setProgress(0, 0, 0);
+					// 表示直前にもう一度アクティビティの生存確認を行う
+					if (mActivity == null || mActivity.isFinishing() || mActivity.isDestroyed()) {
+						return;
+					}
+					try {
+						// ダイアログの表示
+						mProgressDialog.show(supportFragmentManager, TAG);
+						// プログレスバーをリセット
+						mProgressDialog.setProgress(0, 0, 0);
+					}
+					catch (Exception e) {
+						e.printStackTrace();
+					}
 				});
 				// 読み込み中の位置の変化量をクリア
 				old_progress = progress;
@@ -487,8 +501,10 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 						// 読み込み中の位置が変化したらプログレスバーを更新
 						int finalProgress = progress;
 						mainHandler.post(() -> {
-							// メイン画面で表示
-							mProgressDialog.setProgress(finalProgress, numerator, denominator);
+							if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed()) {
+								// メイン画面で表示
+								mProgressDialog.setProgress(finalProgress, numerator, denominator);
+							}
 						});
 						// 次の位置と比較するため値を保存
 						old_progress = progress;
@@ -497,8 +513,15 @@ public class FileSelectList implements Runnable, Callback, DialogInterface.OnDis
 			} catch  (Exception e) {
 				// 処理中断
 				mainHandler.post(() -> {
-					// メイン画面で表示(クラッシュ防止)
-					mProgressDialog.dismissAllowingStateLoss();
+					try {
+						if (mActivity != null && !mActivity.isFinishing() && !mActivity.isDestroyed()) {
+							// メイン画面で表示(クラッシュ防止)
+							mProgressDialog.dismissAllowingStateLoss();
+						}
+					}
+					catch (Exception ex) {
+						ex.printStackTrace();
+					}
 				});
 			}
 			// スレッドを終了させて最初から始める

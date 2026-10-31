@@ -70,6 +70,7 @@ public class DEF {
 	public static final int MESSAGE_MOVE_PATH_EROOR = 1016;
 	public static final int MESSAGE_RESETLOCAL = 1017;
 	public static final int MESSAGE_WEBSHAREICON = 1018;
+	public static final int MESSAGE_SETTINGSEARCHICON = 1019;
 
 	public static final int MESSAGE_IMAGE = 1;
 	public static final int MESSAGE_TEXT = 2;
@@ -444,6 +445,9 @@ public class DEF {
 	public static final int ACCESS_TYPE_SAF = 1;
 	public static final int ACCESS_TYPE_PICKER = 2;
 	public static final int ACCESS_TYPE_WEBDAV = 3;
+	public static final int ACCESS_TYPE_FTP = 4;
+	public static final int ACCESS_TYPE_FTPS = 5;
+	public static final int ACCESS_TYPE_SFTP = 6;
 
 	public static final int VIEWPT_RIGHTTOP = 0;
 	public static final int VIEWPT_LEFTTOP = 1;
@@ -467,8 +471,9 @@ public class DEF {
 	//	public static final int TOOLBAR_SERVER = 4;
 	public static final int TOOLBAR_UPDATE_READPOSITION = 4;
 	public static final int TOOLBAR_WEB_SHARING = 5;
-	public static final int TOOLBAR_ADDDIR = 6;
-	public static final int TOOLBAR_EXIT = 7;
+	public static final int TOOLBAR_SEARCHSETTING = 6;
+	public static final int TOOLBAR_ADDDIR = 7;
+	public static final int TOOLBAR_EXIT = 8;
 
 	// ページめくり表示方向
 	public static final int PAGEWAY_RIGHT = 0; // 右から左
@@ -852,6 +857,8 @@ public class DEF {
 	public static final String KEY_TAP_PATTERN_MENU = "tapPatternMenu";
 	public static final String KEY_TAP_SETUP_MENU = "tapSettingMenu";
 	public static final String KEY_CHGPAGENEXT = "ChgPageNext";
+	public static final String KEY_SEARCHSETTINGICON =  "SearchSettingIcon";
+	public static final String KEY_EXPORT_FORMAT =  "ExportFormat";
 
 	public static final String KEY_MarginAspectMask = "MarginAspectMask";
 	public static final String KEY_MarginForceIgnoreAspect = "MarginForceIgnoreAspect";
@@ -4804,13 +4811,13 @@ public class DEF {
 		if (url.length() <= 6) {
 			return url;
 		}
-		if (!url.startsWith("smb://") && !url.startsWith("http://") && !url.startsWith("https://") || user == null || user.isEmpty()) {
+		if (!url.startsWith("smb://") && !url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("ftp://") && !url.startsWith("ftps://") && !url.startsWith("sftp://") || user == null || user.isEmpty()) {
 			return url;
 		}
 		// サーバ名
 		String ret = "";
 		try {
-			String host = (url.startsWith("smb://")) ? "smb://" : "http://";
+			String host = (url.startsWith("smb://")) ? "smb://" : (url.startsWith("http://")) ? "http://" : (url.startsWith("ftp://")) ? "ftp://" : (url.startsWith("ftps://")) ? "ftps://" : (url.startsWith("sftp://")) ? "sftp://" : "";
 			ret = host + URLEncoder.encode(user, "UTF-8");
 			if (pass != null && !pass.isEmpty()) {
 				ret += ":" + URLEncoder.encode(pass, "UTF-8");
