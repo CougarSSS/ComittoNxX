@@ -2805,7 +2805,13 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				boolean folderChanged = (mServer == null || mServer.getSelect() != nextServer || !nextDir.equals(mPath));
 				if (folderChanged) {
 					Logcat.w(logLevel, "書庫管理: 次ファイルが別フォルダのため移動します. server=" + nextServer + ", dir=" + nextDir + ", file=" + nextfile.getName());
-					moveFileSelectFromServer(nextServer, nextDir);
+					// nextOpenMain()はnextFileOpen()から別スレッドで呼ばれるが、moveFileSelectFromServer()は
+					// Handlerを生成するためLooperの無いスレッドでは落ちる。フォルダ移動と後続の設定はメインスレッドで行う。
+					final int moveServer = nextServer;
+					final String moveDir = nextDir;
+					final String moveFile = nextfile.getName();
+					new Handler(Looper.getMainLooper()).post(() -> {
+					moveFileSelectFromServer(moveServer, moveDir);
 					// moveFileSelectFromServer()内のloadListView()がmLoadListNextOpenを
 					// 一旦CLICK_NONEにリセットするため、必ずこの呼び出しの「後」に設定すること。
 					// ここではnextopen(CLICK_NEXTTOP等)をそのまま引き継いではいけない
@@ -2814,8 +2820,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					// 既にnextfileとして確定しているので、直接そのファイルを指すCLICK_HISTORYで
 					// 開かせる(openLibraryVolume()の初回オープンと同じ経路)。
 					mLoadListNextOpen = CloseDialog.CLICK_HISTORY;
-					mLoadListNextPath = nextDir;
-					mLoadListNextFile = nextfile.getName();
+					mLoadListNextPath = moveDir;
+					mLoadListNextFile = moveFile;
 					mLoadListNextInFile = "";
 					mLoadListNextType = type;
 					// CLICK_HISTORYでの再オープンは、ここで渡すページ番号がそのまま
@@ -2833,6 +2839,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 							mLoadListNextPage = DEF.PAGENUMBER_UNREAD; // 先頭ページを開く
 							break;
 					}
+					});
 					// moveFileSelectFromServer()が既にリスト読み込みを開始させているため、
 					// 呼び出し元による二重のloadListView()/loadThumbnail()呼び出しを避けるためtrueを返す
 					// (非同期のリスト読み込み完了後、上のmLoadListNextOpenチェック経由で
