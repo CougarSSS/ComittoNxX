@@ -7005,11 +7005,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	}
 
 	// 書庫管理タブ先頭のダミー項目タップ時のメニュー
-	// (サーバー側スキャン起動/端末側取得/既読位置更新/タイトル検索/絞り込み解除)
+	// (端末側取得/既読位置更新/タイトル検索/絞り込み解除)
 	private void showLibraryOptionsDialog() {
 		Resources res = getResources();
 		final ArrayList<String> itemList = new ArrayList<String>();
-		itemList.add(res.getString(R.string.libraryMenuRescan));
 		itemList.add(res.getString(R.string.libraryMenuPull));
 		itemList.add(res.getString(R.string.libraryMenuReadPositionSync));
 		itemList.add(res.getString(R.string.libraryMenuSearch));
@@ -7023,10 +7022,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			public void onSelectItem(int item) {
 				String selected = items[item];
 				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: オプション選択=" + selected);
-				if (selected.equals(res.getString(R.string.libraryMenuRescan))) {
-					rescanLibraryOnServer();
-				}
-				else if (selected.equals(res.getString(R.string.libraryMenuPull))) {
+				if (selected.equals(res.getString(R.string.libraryMenuPull))) {
 					pullLibraryFromServer();
 				}
 				else if (selected.equals(res.getString(R.string.libraryMenuReadPositionSync))) {
@@ -7074,17 +7070,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		mTextInputDialog.show();
 	}
 
-	// bookmark-sync-serverの/library/rescanでサーバー側の即時スキャンだけをキックする
-	// (取得は別操作。スキャンは数十秒〜数分かかるため、ここでは完了を待たない。
-	// 結果はHMSG_LIBRARYSYNC_RESCAN_RESULTで受信)。
-	private void rescanLibraryOnServer() {
-		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: サーバー側スキャンを開始します(LibrarySyncClient.rescanOnly)");
-		LibrarySyncClient.rescanOnly(mActivity, mHandler, mSharedPreferences);
-	}
-
 	// bookmark-sync-serverの/libraryへ問い合わせてローカルキャッシュを丸ごと更新する
-	// (結果はHMSG_LIBRARYSYNC_RESULTで受信)。サーバー側の最新化はrescanLibraryOnServer()で
-	// 別途行う想定(こちらはその時点でサーバーが持っているカタログを取得するだけ)。
+	// (結果はHMSG_LIBRARYSYNC_RESULTで受信)。
+	// サーバー側のスキャンは別のツールが行うため、その時点でサーバーが持っているカタログを取得するだけ。
 	private void pullLibraryFromServer() {
 		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 端末側取得を開始します(LibrarySyncClient.pullAll)");
 		LibrarySyncClient.pullAll(mActivity, mHandler, mSharedPreferences);
@@ -9449,22 +9437,6 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					refreshLibraryList();
 					// 更新後は最新順の先頭が見えるよう、スクロール位置を明示的に先頭へ戻す
 					mListScreenView.mLibraryListArea.setTopIndex(0, 0);
-				}
-				return true;
-			}
-			case DEF.HMSG_LIBRARYSYNC_RESCAN_RESULT: {
-				// 書庫管理: bookmark-sync-server /library/rescan の起動結果を受信する
-				// (完了は待たない。取得は別途「端末側を更新」で行う)。
-				int status = msg.arg1;
-				Resources res = getResources();
-				if (status == LibrarySyncClient.RESCAN_STATUS_TRIGGERED) {
-					Toast.makeText(mActivity, res.getString(R.string.libraryRescanTriggered), Toast.LENGTH_LONG).show();
-				}
-				else if (status == LibrarySyncClient.RESCAN_STATUS_COOLDOWN) {
-					Toast.makeText(mActivity, res.getString(R.string.libraryRescanCooldown), Toast.LENGTH_LONG).show();
-				}
-				else {
-					Toast.makeText(mActivity, res.getString(R.string.libraryRescanError), Toast.LENGTH_LONG).show();
 				}
 				return true;
 			}

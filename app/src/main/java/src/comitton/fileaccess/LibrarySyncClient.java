@@ -86,44 +86,6 @@ public class LibrarySyncClient {
         }
     }
 
-    public static final int RESCAN_STATUS_TRIGGERED = 202; // 新規にスキャンを起動した
-    public static final int RESCAN_STATUS_COOLDOWN = 429;  // 直近の実行でクールダウン中(既に実行中/完了直後のどちらか判別不能)
-    public static final int RESCAN_STATUS_FAILED = -1;     // 呼び出し自体に失敗
-
-    // サーバー側の即時スキャンをキックする。202/429/失敗の3状態を返す。
-    private static int postRescan(SharedPreferences sp) {
-        HttpURLConnection conn = null;
-        try {
-            conn = (HttpURLConnection) new URL(baseUrl(sp) + "/rescan").openConnection();
-            conn.setRequestMethod("POST");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(10000);
-            applyAuth(conn, sp);
-            conn.setFixedLengthStreamingMode(0);
-            conn.getOutputStream().close();
-
-            int responseCode = conn.getResponseCode();
-            Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: /library/rescan応答. HTTP " + responseCode);
-            if (responseCode == 202) {
-                return RESCAN_STATUS_TRIGGERED;
-            }
-            if (responseCode == 429) {
-                return RESCAN_STATUS_COOLDOWN;
-            }
-            return RESCAN_STATUS_FAILED;
-        }
-        catch (Exception e) {
-            Logcat.e(Logcat.LOG_LEVEL_WARN, "書庫管理: /library/rescan呼び出しエラー", e);
-            return RESCAN_STATUS_FAILED;
-        }
-        finally {
-            if (conn != null) {
-                conn.disconnect();
-            }
-        }
-    }
-
     private static String readBody(HttpURLConnection conn) throws Exception {
         BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8));
         StringBuilder response = new StringBuilder();
@@ -186,30 +148,6 @@ public class LibrarySyncClient {
                 }
                 Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: /library全件取得完了. " + entries.size() + "件");
                 Message msg = handler.obtainMessage(DEF.HMSG_LIBRARYSYNC_RESULT, entries);
-                handler.sendMessage(msg);
-            }
-        }).start();
-    }
-
-    /**
-     * サーバー側の即時スキャン(POST /library/rescan)だけをキックする(取得は行わない、
-     * サーバー側と端末側の更新を別操作にするため)。スキャンは数十秒〜数分かかるため、
-     * ここでは完了を待たない。結果はHandler経由で返す
-     * (msg.what = DEF.HMSG_LIBRARYSYNC_RESCAN_RESULT, msg.arg1 = RESCAN_STATUS_*)。
-     */
-    public static void rescanOnly(final Context context, final Handler handler, final SharedPreferences sp) {
-        if (handler == null) {
-            return;
-        }
-        if (!isConfigured(sp)) {
-            sendError(handler, "Bookmark sync server is not configured.");
-            return;
-        }
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                int status = postRescan(sp);
-                Message msg = handler.obtainMessage(DEF.HMSG_LIBRARYSYNC_RESCAN_RESULT, status, 0);
                 handler.sendMessage(msg);
             }
         }).start();

@@ -1057,8 +1057,6 @@ public class DEF {
 	public static final int HMSG_LIBRARY_RESULT = 37;
 	// 書庫管理タブ(bookmark-sync-server /library、全件取得)の非同期取得結果
 	public static final int HMSG_LIBRARYSYNC_RESULT = 38;
-	// 書庫管理タブ(bookmark-sync-server /library/rescan)のスキャン起動結果
-	public static final int HMSG_LIBRARYSYNC_RESCAN_RESULT = 39;
 	// 書庫管理タブ向けの既読位置更新(ReadPositionSyncClient.pullAllForHost)の結果
 	public static final int HMSG_LIBRARY_READPOSITION_PULL_RESULT = 40;
 

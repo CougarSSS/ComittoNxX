@@ -582,12 +582,8 @@
     <string name="libraryVolumeCount">%1$d volume(s)</string>
     <string name="libraryReadSummary">Read: %1$d/%2$d (%3$d%%)</string>
     <string name="librarySyncDone">Library updated: %1$d new item(s)</string>
-    <string name="libraryMenuRescan">Scan server now</string>
     <string name="libraryMenuPull">Update from server</string>
     <string name="libraryMenuReadPositionSync">Update read position</string>
-    <string name="libraryRescanTriggered">Server scan started. Use \"Update from server\" once it finishes.</string>
-    <string name="libraryRescanCooldown">A scan already ran recently. Use \"Update from server\" to fetch the current catalog.</string>
-    <string name="libraryRescanError">Could not start the server scan.</string>
     <string name="libraryMenuSearch">Search by title</string>
     <string name="libraryMenuClearFilter">Clear filter</string>
     <string name="libraryMenuImportError">Failed to import Library data</string>
