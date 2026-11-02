@@ -265,6 +265,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private ArrayList<LibraryEntry> mLibraryDrilldownVolumes;
 	// タイトル絞り込みキーワード(空文字は絞り込み無し)
 	private String mLibraryFilterText = "";
+	// 作品にドリルダウンする直前の作品一覧のスクロール位置(先頭行・行内オフセット)。
+	// 作品一覧に戻ったときに復元する。
+	private int mLibraryListSavedRow = 0;
+	private int mLibraryListSavedPos = 0;
 	// onRequestUpdate()が直前にトップレベル一覧を実際に再構築した時点の
 	// (LibraryCache.buildWorkList()の参照, mLibraryFilterText)。この2つが変化していなければ
 	// 一覧の再構築・再レイアウトを省略できる(buildWorkList()はキャッシュ未変更時に同一参照を返す)。
@@ -6969,6 +6973,12 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				mLibraryDrilldownWork = null;
 				mLibraryDrilldownVolumes = null;
 				refreshLibraryList();
+				// ドリルダウン前のスクロール位置を復元する。ドリルダウン中にカタログが更新されるなどして
+				// 一覧が短くなっていた場合は、範囲外にならないよう先頭に戻す
+				ArrayList<RecordItem> restoredList = mListScreenView.mLibraryListArea.getList();
+				if (restoredList != null && mLibraryListSavedRow < restoredList.size()) {
+					mListScreenView.mLibraryListArea.scrollMove(mLibraryListSavedRow, mLibraryListSavedPos);
+				}
 				return;
 			}
 			if (mLibraryDrilldownVolumes == null) {
@@ -6999,9 +7009,13 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			Logcat.w(logLevel, "書庫管理: 作品インデックスが範囲外です. workIndex=" + workIndex + ", size=" + mLibraryFilteredWorks.size());
 			return;
 		}
+		// 作品一覧のスクロール位置を控えてから、巻一覧は先頭から表示する
+		mLibraryListSavedRow = mListScreenView.mLibraryListArea.getTopRow();
+		mLibraryListSavedPos = mListScreenView.mLibraryListArea.getTopPos();
 		mLibraryDrilldownWork = mLibraryFilteredWorks.get(workIndex);
 		Logcat.w(logLevel, "書庫管理: 作品にドリルダウンします. title=" + mLibraryDrilldownWork.title + ", 巻数=" + mLibraryDrilldownWork.volumes.size());
 		refreshLibraryList();
+		mListScreenView.mLibraryListArea.scrollMove(0, 0);
 	}
 
 	// 書庫管理タブ先頭のダミー項目タップ時のメニュー
@@ -9432,6 +9446,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				LibraryCache.clearAll();
 				int added = LibraryCache.merge(fetched);
 				mLibraryVirtualFileList = null;
+				// カタログが置き換わるため、ドリルダウン前の作品一覧のスクロール位置は無効にする
+				mLibraryListSavedRow = 0;
+				mLibraryListSavedPos = 0;
 				Toast.makeText(mActivity, String.format(getResources().getString(R.string.librarySyncDone), added), Toast.LENGTH_SHORT).show();
 				if (mListScreenView.getListType() == RecordList.TYPE_LIBRARY) {
 					refreshLibraryList();
