@@ -6717,6 +6717,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				}
 				String root = "smb://" + host;
 				if (uri.regionMatches(true, 0, root, 0, root.length())
+						&& (uri.length() == root.length() || (uri.charAt(root.length()) == '/' || uri.charAt(root.length()) == ':'))
 						&& (matchedRoot == null || root.length() > matchedRoot.length())) {
 					matchedIndex = s;
 					matchedRoot = root;
@@ -6905,7 +6906,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 	// buildLibraryRecordList()が直近に発行したトークン。フィルタ変更やタブ切替で一覧が
 	// 作り直された後に古い非同期集計結果が反映されてしまわないようにするためのガード。
-	private int mLibraryReadSummaryToken = 0;
+	private volatile int mLibraryReadSummaryToken = 0;
 
 	// 書庫管理タブの各タイトルの既読集計をバックグラウンドで計算し、終わり次第メインスレッドで
 	// 該当RecordItem(works/workItemsは同じ並び)へ反映して再描画を要求する。
@@ -7373,7 +7374,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		int matchedIndex = EVERYTHING_NO_SERVER;
 		String matchedRoot = null;
 		for (LibraryServerRoot r : roots) {
+			// ホスト名の前方一致(nas と nas-server など)で別のサーバーに誤って一致しないよう、ルートの直後は区切りか末尾に限る
 			if (smbPath.regionMatches(true, 0, r.root, 0, r.root.length())
+					&& (smbPath.length() == r.root.length() || (smbPath.charAt(r.root.length()) == '/' || smbPath.charAt(r.root.length()) == ':'))
 					&& (matchedRoot == null || r.root.length() > matchedRoot.length())) {
 				matchedIndex = r.server;
 				matchedRoot = r.root;

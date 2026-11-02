@@ -117,9 +117,7 @@ public class LibraryCache {
         }
         int skipped = 0;
         try {
-            FileInputStream is = new FileInputStream(filepath);
-            InputStreamReader sr = new InputStreamReader(is, "UTF-8");
-            BufferedReader br = new BufferedReader(sr, 8192);
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(filepath), "UTF-8"), 8192)) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(SEPARATOR, -1);
@@ -143,9 +141,7 @@ public class LibraryCache {
                     continue;
                 }
             }
-            br.close();
-            sr.close();
-            is.close();
+            }
             Logcat.w(logLevel, "loadFromDisk: " + filepath + " から" + list.size() + "件読み込み(不正行スキップ" + skipped + "件)");
         }
         catch (Exception ex) {
@@ -162,18 +158,24 @@ public class LibraryCache {
             dir.mkdirs();
         }
         try {
-            FileOutputStream os = new FileOutputStream(filepath, false);
-            OutputStreamWriter sw = new OutputStreamWriter(os, "UTF-8");
-            BufferedWriter bw = new BufferedWriter(sw, 8192);
-            for (LibraryEntry e : list) {
-                bw.write(sanitize(e.getPath()) + SEPARATOR + sanitize(e.getName()) + SEPARATOR + e.getSize() + SEPARATOR + e.getDateModified()
-                        + SEPARATOR + sanitize(e.getTitle()));
-                bw.newLine();
+            // 書き込み途中の中断で既存のキャッシュが壊れないよう、一時ファイルに書いてから置き換える
+            File tmp = new File(filepath + ".tmp");
+            try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tmp, false), "UTF-8"), 8192)) {
+                for (LibraryEntry e : list) {
+                    bw.write(sanitize(e.getPath()) + SEPARATOR + sanitize(e.getName()) + SEPARATOR + e.getSize() + SEPARATOR + e.getDateModified()
+                            + SEPARATOR + sanitize(e.getTitle()));
+                    bw.newLine();
+                }
             }
-            bw.flush();
-            bw.close();
-            sw.close();
-            os.close();
+            File dest = new File(filepath);
+            if (!tmp.renameTo(dest)) {
+                if (dest.exists() && !dest.delete()) {
+                    throw new java.io.IOException("cannot replace " + filepath);
+                }
+                if (!tmp.renameTo(dest)) {
+                    throw new java.io.IOException("cannot rename " + tmp.getAbsolutePath());
+                }
+            }
             Logcat.w(logLevel, "saveToDisk: " + filepath + " へ" + list.size() + "件保存");
         }
         catch (Exception ex) {

@@ -1003,7 +1003,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		// mImageNameはファイルから開いたかディレクトリを開いたかの判定に使用する
 
 		Logcat.d(logLevel, "mServer=" + mServer + ", mURI=" + mURI + ", mPath=" + mPath
-				+ ", mUser=" + mUser + ", mPass=" + mPass
+				+ ", mUser=" + mUser
 				+ ", mFileName=" + mFileName + ", mImageName=" + mImageName);
 
 		if (mPath == null) {
@@ -7739,7 +7739,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			Editor ed = sp.edit();
 			int savePage = mCurrentPage;
 			int	maxpage = mImageMgr.length();
-			Logcat.d(logLevel, "Url=" + DEF.createUrl(mFilePath, mUser, mPass));
+			Logcat.d(logLevel, "Url=" + mFilePath);
 
 			if (maxpage > 0) {
 				// ページ数が0でないときは保存する

@@ -118,6 +118,10 @@ public class LibrarySyncClient {
             offset += page.results.size();
             Logcat.w(logLevel, "書庫管理: /library取得中. offset=" + offset + "/" + total);
         }
+        if (total != Integer.MAX_VALUE && offset < total) {
+            // 途中のページが空/不正のまま打ち切られた。部分的な一覧でキャッシュを置き換えないよう失敗扱いにする
+            throw new java.io.IOException("Incomplete library response: " + offset + "/" + total);
+        }
         return entries;
     }
 
