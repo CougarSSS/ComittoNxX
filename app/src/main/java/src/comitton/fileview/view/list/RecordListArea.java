@@ -416,7 +416,13 @@ public class RecordListArea extends ListArea {
 					// 書庫管理タブの巻: 親フォルダ名(漫画⇔Aria2c_DL等) / 日付 / サイズ / 既読状況の4行
 					mInfoSep[index] = new String[4][];
 					String folder = rd.getLibraryFolderLabel();
-					mInfoSep[index][0] = TextFormatter.getMultiLine(folder != null ? folder : "", tcx, mInfoPaint, 1);
+					// 巻番号(「3巻」「1〜3巻」「上巻」)をファイル名から読み、親フォルダ名の前に付ける
+					String volLabel = rd.getLibraryVolumeLabel() != null ? rd.getLibraryVolumeLabel() : "";
+					String firstLine = (folder != null ? folder : "");
+					if (volLabel.length() > 0) {
+						firstLine = volLabel + (firstLine.length() > 0 ? "  " + firstLine : "");
+					}
+					mInfoSep[index][0] = TextFormatter.getMultiLine(firstLine, tcx, mInfoPaint, 1);
 					mInfoSep[index][1] = TextFormatter.getMultiLine(rd.getImage(), tcx, mInfoPaint, 1);
 					mInfoSep[index][2] = TextFormatter.getMultiLine(rd.getServerName(), tcx, mInfoPaint, 1);
 					String status = rd.getReadStatus();

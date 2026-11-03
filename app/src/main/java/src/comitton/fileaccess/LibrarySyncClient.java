@@ -42,6 +42,8 @@ public class LibrarySyncClient {
         long size;
         long date_modified;
         String work_title;
+        // 手動補正された巻番号。補正のあるファイルにだけ付く(古いサーバーでは常にnull)。
+        String volumes;
     }
 
     private static boolean isConfigured(SharedPreferences sp) {
@@ -112,7 +114,9 @@ public class LibrarySyncClient {
                 if (item.name == null || item.name.isEmpty()) {
                     continue;
                 }
-                entries.add(new LibraryEntry(item.path != null ? item.path : "", item.name, item.size, item.date_modified, item.work_title));
+                LibraryEntry entry = new LibraryEntry(item.path != null ? item.path : "", item.name, item.size, item.date_modified, item.work_title);
+                entry.setVolumes(item.volumes);
+                entries.add(entry);
             }
             total = page.total;
             offset += page.results.size();

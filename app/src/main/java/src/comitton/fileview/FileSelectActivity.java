@@ -816,6 +816,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						extkeydata = 0;
 						return;
 					}
+					if (isLibraryDrilldownShown()) {
+						// 書庫管理の巻一覧では、作品一覧に戻る
+						leaveLibraryDrilldown();
+						return;
+					}
 					// ※戻るキーの処理が連続で処理されないように画面をロックする
 					// 中央のぐるぐる(インジケータ)を表示(画面のロック処理)
 					lockScreenAndShowProgress();
@@ -3477,6 +3482,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			case DEF.TAP_FILELIST_NOSELECT:
 				break;
 			case DEF.TAP_FILELIST_BACK:
+				if (isLibraryDrilldownShown()) {
+					// 書庫管理の巻一覧では、作品一覧に戻る
+					leaveLibraryDrilldown();
+					break;
+				}
 				int listtype = mListScreenView.getListType();
 				if(listtype != RecordList.TYPE_FILELIST){
 					// サムネイルを読み込ませる
@@ -3689,6 +3699,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					case KeyEvent.KEYCODE_BACK:
 						if (Build.VERSION.SDK_INT >= 36 && keycode == KeyEvent.KEYCODE_BACK) {
 							// Android16以降の戻るキーの場合は予測型戻るジェスチャーに委ねる(ランチャーからの戻るキーの呼び出しに対応)
+							return true;
+						}
+						if (isLibraryDrilldownShown()) {
+							// 書庫管理の巻一覧では、作品一覧に戻る
+							leaveLibraryDrilldown();
 							return true;
 						}
 						int listtype = mListScreenView.getListType();
@@ -6794,7 +6809,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				Collections.sort(mLibraryDrilldownVolumes, new Comparator<LibraryEntry>() {
 					@Override
 					public int compare(LibraryEntry a, LibraryEntry b) {
-						return LibraryCache.compareVolumeName(a.getName(), b.getName());
+						return LibraryCache.compareVolumeEntry(a, b);
 					}
 				});
 
@@ -6831,6 +6846,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					// 同じ作品の巻でも漫画⇔Aria2c_DL等、別フォルダに実在することがあるため、
 					// どのフォルダの巻かが分かるよう親フォルダ名を表示する。
 					rd.setLibraryFolderLabel(extractLibraryFolderLabel(resolvedDirPath));
+					rd.setLibraryVolumeLabel(LibraryCache.volumeOf(e).label());
 					rd.setImage(formatLibraryDateLine(e.getDateModified()));
 					rd.setServerName(formatLibrarySizeLine(e.getSize()));
 					rd.setDate(e.getDateModified());
@@ -6963,6 +6979,25 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		mListScreenView.notifyUpdate(RecordList.TYPE_LIBRARY);
 	}
 
+	// 書庫管理の巻一覧(ドリルダウン中)かどうか
+	private boolean isLibraryDrilldownShown() {
+		return mListScreenView != null
+				&& mListScreenView.getListType() == RecordList.TYPE_LIBRARY
+				&& mLibraryDrilldownWork != null;
+	}
+
+	// 巻一覧から作品一覧へ戻る。ドリルダウン前のスクロール位置を復元する
+	private void leaveLibraryDrilldown() {
+		mLibraryDrilldownWork = null;
+		mLibraryDrilldownVolumes = null;
+		refreshLibraryList();
+		// ドリルダウン中にカタログが更新されるなどして一覧が短くなっていた場合は、範囲外にならないよう先頭に戻す
+		ArrayList<RecordItem> restoredList = mListScreenView.mLibraryListArea.getList();
+		if (restoredList != null && mLibraryListSavedRow < restoredList.size()) {
+			mListScreenView.mLibraryListArea.scrollMove(mLibraryListSavedRow, mLibraryListSavedPos);
+		}
+	}
+
 	// 書庫管理タブのタップ処理(作品⇔巻のドリルダウン、ファイルオープン、先頭ダミー項目)
 	private void handleLibraryItemClick(int listpos) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
@@ -6971,15 +7006,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			if (listpos == 0) {
 				// 作品一覧に戻る
 				Logcat.w(logLevel, "書庫管理: 作品一覧に戻ります");
-				mLibraryDrilldownWork = null;
-				mLibraryDrilldownVolumes = null;
-				refreshLibraryList();
-				// ドリルダウン前のスクロール位置を復元する。ドリルダウン中にカタログが更新されるなどして
-				// 一覧が短くなっていた場合は、範囲外にならないよう先頭に戻す
-				ArrayList<RecordItem> restoredList = mListScreenView.mLibraryListArea.getList();
-				if (restoredList != null && mLibraryListSavedRow < restoredList.size()) {
-					mListScreenView.mLibraryListArea.scrollMove(mLibraryListSavedRow, mLibraryListSavedPos);
-				}
+				leaveLibraryDrilldown();
 				return;
 			}
 			if (mLibraryDrilldownVolumes == null) {
@@ -7472,7 +7499,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		Collections.sort(volumes, new Comparator<LibraryEntry>() {
 			@Override
 			public int compare(LibraryEntry a, LibraryEntry b) {
-				return LibraryCache.compareVolumeName(a.getName(), b.getName());
+				return LibraryCache.compareVolumeEntry(a, b);
 			}
 		});
 		// ServerSelect(=SharedPreferences全読み込み)の構築は1回だけにする。
