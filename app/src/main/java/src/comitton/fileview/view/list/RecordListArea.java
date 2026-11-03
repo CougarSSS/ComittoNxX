@@ -236,7 +236,9 @@ public class RecordListArea extends ListArea {
 		mInfoPaint.setColor(clr_inf);
 		mBakColor = clr_bak;
 		mCurColor = clr_cur;
-		mSepColor = clr_inf;
+		// 区切り線は文字色(白/黒に近い色)で描く。中間の灰色だと、端末によってはパネルの調光の点滅で
+		// ゆっくりスクロール中にちらついて見える
+		mSepColor = clr_txt;
 		mLinePaint.setColor(clr_frm);
 //		mBitmapPaint.setColor(clr_inf);
 		mBitmapColor = clr_txt;
