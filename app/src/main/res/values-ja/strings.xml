@@ -1221,4 +1221,11 @@
     <string name="webserver">Webview画面の設定</string>
     <string name="config">設定</string>
 
+    <string name="ope14on">閲覧履歴を残さないフォルダに追加</string>
+    <string name="ope14off">閲覧履歴を残さないフォルダから外す</string>
+    <string name="noHistoryAdded">閲覧履歴を残さないフォルダに登録しました</string>
+    <string name="noHistoryRemoved">閲覧履歴を残さないフォルダから外しました</string>
+    <string name="noHistoryDeleteConfirm">このフォルダの本が、この端末の履歴に%1$d件あります。履歴から消しますか?(サーバーの履歴・既読位置は変わりません)</string>
+    <string name="noHistoryDelete">消す</string>
+    <string name="noHistoryKeep">残す</string>
 </resources>

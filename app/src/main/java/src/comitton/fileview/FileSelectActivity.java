@@ -108,6 +108,7 @@ import src.comitton.fileaccess.FileAccessException;
 import src.comitton.fileaccess.SafFileAccess;
 import src.comitton.fileview.filelist.FileSelectList;
 import src.comitton.fileview.filelist.RecordList;
+import src.comitton.fileview.filelist.NoHistoryFolders;
 import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.fileview.filelist.LibraryCache;
 import src.comitton.imageview.ImageActivity;
@@ -229,6 +230,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private static final int OPERATE_EPUB = 9;
 	private static final int OPERATE_DELFILELISTCACHE = 10;
 	private static final int OPERATE_REGENERATEFILECACHE = 11;
+	private static final int OPERATE_NOHISTORY = 12;
 	private static final int OPERATE_SETTHUMBASDIR = 100;
 	private static final int OPERATE_SETTHUMBCROPPED = 101;
 
@@ -312,7 +314,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private FileData mFileData = null;
 	private RecordItem mSelectRecord = null;
 	private int mSelectPos;
-	private final int[] mOperate = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+	private final int[] mOperate = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
 
 	private String mURI = "";
 	private String mPath = "";
@@ -5584,6 +5586,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			if (mFileData.getType() == FileData.FILETYPE_DIR) {
 				// フォルダを開く
 				itemnum++;
+				// 閲覧履歴を残さないフォルダの登録/解除
+				itemnum++;
 				if (mServer.getSelect() != DEF.INDEX_LOCAL) {
 					// SMBならダウンロード
 					itemnum++;
@@ -5671,6 +5675,11 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				// フォルダを開く
 				items[i] = ope2;
 				mOperate[i] = OPERATE_OPEN;
+				i++;
+				// 閲覧履歴を残さないフォルダの登録/解除
+				items[i] = res.getString(NoHistoryFolders.isRegistered(mSharedPreferences, mServer.getHost(), mPath + mFileData.getName())
+						? R.string.ope14off : R.string.ope14on);
+				mOperate[i] = OPERATE_NOHISTORY;
 				i++;
 				if (mServer.getSelect() != DEF.INDEX_LOCAL) {
 					// SMBならダウンロード
@@ -5788,6 +5797,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 
 					case OPERATE_DEL: // ファイル削除
 						showDialog(DEF.MESSAGE_FILE_DELETE);
+						break;
+
+					case OPERATE_NOHISTORY: // 閲覧履歴を残さないフォルダの登録/解除
+						toggleNoHistoryFolder(mPath + mFileData.getName());
 						break;
 
 					case OPERATE_DOWN: // ダウンロード
@@ -6980,6 +6993,54 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	}
 
 	// 書庫管理の巻一覧(ドリルダウン中)かどうか
+	// 閲覧履歴を残さないフォルダの登録/解除。登録時、端末の履歴に該当の本があれば消すか尋ねる(サーバー側は触らない)
+	private void toggleNoHistoryFolder(final String folder) {
+		final String host = mServer.getHost();
+		if (NoHistoryFolders.isRegistered(mSharedPreferences, host, folder)) {
+			NoHistoryFolders.remove(mSharedPreferences, host, folder);
+			Toast.makeText(mActivity, R.string.noHistoryRemoved, Toast.LENGTH_SHORT).show();
+			return;
+		}
+		NoHistoryFolders.add(mSharedPreferences, host, folder);
+		final ServerSelect serverSel = new ServerSelect(mSharedPreferences, mActivity);
+		final ArrayList<RecordItem> all = RecordList.load(null, RecordList.TYPE_HISTORY);
+		int count = 0;
+		if (all != null) {
+			for (RecordItem item : all) {
+				if (NoHistoryFolders.isExcluded(mSharedPreferences, serverSel.getHost(item.getServer()), item)
+						&& item.getServer() == mServer.getSelect()) {
+					count++;
+				}
+			}
+		}
+		if (count == 0) {
+			Toast.makeText(mActivity, R.string.noHistoryAdded, Toast.LENGTH_SHORT).show();
+			return;
+		}
+		new AlertDialog.Builder(mActivity)
+				.setTitle(R.string.noHistoryAdded)
+				.setMessage(String.format(getResources().getString(R.string.noHistoryDeleteConfirm), count))
+				.setPositiveButton(R.string.noHistoryDelete, new DialogInterface.OnClickListener() {
+					@Override
+					public void onClick(DialogInterface dialog, int which) {
+						ArrayList<RecordItem> keep = new ArrayList<RecordItem>();
+						for (RecordItem item : all) {
+							if (!(item.getServer() == mServer.getSelect()
+									&& NoHistoryFolders.isExcluded(mSharedPreferences, serverSel.getHost(item.getServer()), item))) {
+								keep.add(item);
+							}
+						}
+						RecordList.update(keep, RecordList.TYPE_HISTORY);
+						if (mListScreenView != null) {
+							mListScreenView.setRecordList(mListScreenView.mHistListArea, keep);
+							mListScreenView.notifyUpdate(RecordList.TYPE_HISTORY);
+						}
+					}
+				})
+				.setNegativeButton(R.string.noHistoryKeep, null)
+				.show();
+	}
+
 	private boolean isLibraryDrilldownShown() {
 		return mListScreenView != null
 				&& mListScreenView.getListType() == RecordList.TYPE_LIBRARY
@@ -9425,6 +9486,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				if (current != null && pulled != null) {
 					String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(syncServer);
 					for (RecordItem data : pulled) {
+						// 閲覧履歴を残さないフォルダの本は、他の端末の履歴でも取り込まない
+						if (NoHistoryFolders.isExcluded(mSharedPreferences, syncHost, data)) {
+							continue;
+						}
 						data.setServerName(mServer.getName(data.getServer()));
 						int idx = current.indexOf(data);
 						if (idx >= 0) {
@@ -9438,7 +9503,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						if (localItem.getServer() != syncServer) {
 							continue;
 						}
-						if (!pulled.contains(localItem)) {
+						if (!pulled.contains(localItem) && !NoHistoryFolders.isExcluded(mSharedPreferences, syncHost, localItem)) {
 							// サーバーにまだ無いローカル項目を補完push
 							HistorySyncClient.pushUpsert(mActivity, localItem, syncHost, mSharedPreferences);
 						}

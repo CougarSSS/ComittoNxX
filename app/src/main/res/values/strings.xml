@@ -1237,4 +1237,11 @@
     </string>
     <string name="attachment_summary_off">Only download attachments when manually requested</string>
 
+    <string name="ope14on">Add to no-history folders</string>
+    <string name="ope14off">Remove from no-history folders</string>
+    <string name="noHistoryAdded">Registered as a no-history folder</string>
+    <string name="noHistoryRemoved">Removed from no-history folders</string>
+    <string name="noHistoryDeleteConfirm">%1$d item(s) of this folder are in this device\'s history. Delete them from the history? (Server history and read positions are not changed.)</string>
+    <string name="noHistoryDelete">Delete</string>
+    <string name="noHistoryKeep">Keep</string>
 </resources>

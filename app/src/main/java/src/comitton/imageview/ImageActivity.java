@@ -35,6 +35,7 @@ import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.BookmarkSyncClient;
 import src.comitton.fileaccess.HistorySyncClient;
 import src.comitton.fileaccess.ReadPositionSyncClient;
+import src.comitton.fileview.filelist.NoHistoryFolders;
 import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.fileview.data.RecordItem;
 import src.comitton.dialog.BookmarkDialog;
@@ -7905,7 +7906,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		Logcat.d(logLevel, "mServer=" + mServer + ", mURI=" + mURI + ", mPath=" + mPath
 				+ ", mFileName=" + mFileName + ", mImageName=" + mImageName + ", mCurrentPage=" + mCurrentPage);
 		// 履歴追加
-		if (!mReadBreak && mImageMgr != null && mImageMgr.length() > 0 && !mPrevNextMask) {
+		if (!mReadBreak && mImageMgr != null && mImageMgr.length() > 0 && !mPrevNextMask
+				&& !NoHistoryFolders.isExcluded(mSharedPreferences, new ServerSelect(mSharedPreferences, mActivity).getHost(mServer), mPath, mFileName)) {
 			if ((mFileName == null || mFileName.isEmpty()) && (mImageName != null && !mImageName.isEmpty())) {
 				Logcat.d(logLevel, "画像ファイル指定.");
 				// 画像ファイル直接指定

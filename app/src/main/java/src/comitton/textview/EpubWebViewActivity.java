@@ -156,6 +156,7 @@ import src.comitton.dialog.ToolbarEditDialog;
 import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.BookmarkSyncClient;
 import src.comitton.fileaccess.HistorySyncClient;
+import src.comitton.fileview.filelist.NoHistoryFolders;
 import src.comitton.fileview.filelist.ServerSelect;
 import src.comitton.fileview.FileSelectActivity;
 import src.comitton.fileview.data.FileData;
@@ -1643,12 +1644,16 @@ public class EpubWebViewActivity extends AppCompatActivity implements GestureDet
 		int nowPage = GetNowPage();
 		float rate = (float) nowPage / getTotalPagesNow();
 		boolean mHistorySyncSet = FileSelectActivity.getHistorySyncSet();
-		RecordList.add(RecordList.TYPE_HISTORY, type, mServer, mLocalFileName
-			, mTextName, historyDate, null, 0, rate, nowPage, null);
+		// 閲覧履歴を残さないフォルダの本は、端末にもサーバーにも履歴を残さない(既読位置・栞は別処理)
+		boolean noHistory = NoHistoryFolders.isExcluded(mSharedPreferences, new ServerSelect(mSharedPreferences, this).getHost(mServer), mLocalFileName, mTextName);
+		if (!noHistory) {
+			RecordList.add(RecordList.TYPE_HISTORY, type, mServer, mLocalFileName
+				, mTextName, historyDate, null, 0, rate, nowPage, null);
+		}
 
 		// SMBサーバー上のファイルであれば、複数端末で共有できるよう履歴もサーバーへ同期する
 		// (onAddBookmarkと同じ判定・同じpath/fileを使う)
-		if (mServer != DEF.INDEX_LOCAL && mHistorySyncSet) {
+		if (!noHistory && mServer != DEF.INDEX_LOCAL && mHistorySyncSet) {
 			String host = new ServerSelect(mSharedPreferences, this).getHost(mServer);
 			RecordItem syncItem = new RecordItem();
 			syncItem.setType(type);
