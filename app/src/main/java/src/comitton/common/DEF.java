@@ -3820,10 +3820,11 @@ public class DEF {
 	static public int calcSaveNum(int val) {
 		int calc_val = 0;
 		if (val == 0) calc_val = 0;
-		if (val == 1) calc_val = 50;
-		if (val == 2) calc_val = 100;
-		if (val == 3) calc_val = 200;
-		if (val == 4) calc_val = 500;
+		// 設定画面の選択肢(histnum01〜05: 200/400/600/800/1000)に合わせる
+		if (val == 1) calc_val = 200;
+		if (val == 2) calc_val = 400;
+		if (val == 3) calc_val = 600;
+		if (val == 4) calc_val = 800;
 		if (val == 5) calc_val = 1000;
 		return calc_val;
 	}
