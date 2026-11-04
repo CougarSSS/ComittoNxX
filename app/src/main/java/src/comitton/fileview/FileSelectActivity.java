@@ -3095,6 +3095,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		mBookmarkSyncSet = SetBookmarkSyncActivity.getBookmarkSyncEanble(mSharedPreferences);
 		mReadPositionSyncSet = SetBookmarkSyncActivity.getReadPositionSyncEnable(mSharedPreferences);
 		mHistorySyncSet = SetBookmarkSyncActivity.getHistorySyncEnable(mSharedPreferences);
+		if (mReadPositionSyncSet) {
+			// 圏外でサーバーへ送れなかった既読位置を、通信できる状態であれば送る
+			ReadPositionSyncClient.flushAllPendingAsync(this, mSharedPreferences);
+		}
 		mLibrarySyncSet = SetBookmarkSyncActivity.getLibrarySyncEnable(mSharedPreferences);
 		mEverythingSet = SetEverythingActivity.getEverythingEanble(mSharedPreferences);
 		mListType = SetRecorderActivity.getListTypes(mSharedPreferences);

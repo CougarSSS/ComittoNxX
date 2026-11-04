@@ -34,6 +34,7 @@ import src.comitton.config.SetHardwareImageViewerKeyActivity;
 import src.comitton.fileaccess.FileAccess;
 import src.comitton.fileaccess.BookmarkSyncClient;
 import src.comitton.fileaccess.HistorySyncClient;
+import src.comitton.fileaccess.LocalBookOrigin;
 import src.comitton.fileaccess.ReadPositionSyncClient;
 import src.comitton.fileview.filelist.NoHistoryFolders;
 import src.comitton.fileview.filelist.ServerSelect;
@@ -528,6 +529,10 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	private String mPath = "";
 	/** ZIP指定時 */
 	private String mFileName = "";
+	// 既読位置の同期に使う本の場所(ローカルにコピーした本はサーバー上の本の場所)。同期しないときはmSyncHostがnull
+	private String mSyncHost = null;
+	private String mSyncPath = "";
+	private String mSyncFile = "";
 	/** 画像直接指定時はファイル/ExpandActivityから開いた時はZIP内部のファイル */
 	private String mImageName = "";
 	/** URIとパス */
@@ -1036,10 +1041,30 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 		// サーバー同期が有効なSMBサーバー上のファイルであれば、開く前にサーバー側の既読位置を問い合わせて
 		// ローカルより優先する(「サーバー側と同期してから開く」仕様)
-		if (!openFromTop && mServer != DEF.INDEX_LOCAL && mFileName != null && !mFileName.isEmpty() && mReadPositionSyncSet) {
-			String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+		// 同期に使う本の場所(接続先・フォルダ・ファイル名)を決める。
+		// ローカルにコピーした本は、書庫管理のキャッシュからファイル名とサイズが一致するサーバー上の本を探し、
+		// その本として既読位置を共有する(見つからなければ共有しない)
+		mSyncHost = null;
+		if (mReadPositionSyncSet && mFileName != null && !mFileName.isEmpty()) {
+			if (mServer != DEF.INDEX_LOCAL) {
+				mSyncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
+				mSyncPath = mPath;
+				mSyncFile = mFileName;
+			}
+			else {
+				LocalBookOrigin.Origin origin = LocalBookOrigin.resolve(mActivity, mSharedPreferences, mFilePath);
+				if (origin != null) {
+					Logcat.d(logLevel, "ローカルの本をサーバー上の本に対応付けました. host=" + origin.host + ", path=" + origin.path + ", file=" + origin.file);
+					mSyncHost = origin.host;
+					mSyncPath = origin.path;
+					mSyncFile = origin.file;
+				}
+			}
+		}
+		// ローカルの本は圏外のことが多いので、通信できるネットワークが無いときは問い合わせを待たない
+		if (!openFromTop && mSyncHost != null && (mServer != DEF.INDEX_LOCAL || ReadPositionSyncClient.isNetworkAvailable(mActivity))) {
 			ReadPositionSyncClient.Position remotePosition =
-					ReadPositionSyncClient.getRemotePosition(mSharedPreferences, syncHost, mPath, mFileName);
+					ReadPositionSyncClient.getRemotePosition(mSharedPreferences, mSyncHost, mSyncPath, mSyncFile);
 			if (remotePosition != null && remotePosition.page >= 0) {
 				Logcat.d(logLevel, "サーバー側の既読位置を採用します. page=" + remotePosition.page);
 				mRestorePage = remotePosition.page;
@@ -7765,16 +7790,15 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 	// 既読位置をサーバーへ反映する(SMBサーバー上のアーカイブのみ対象、ベストエフォート)
 	private void pushReadPositionToServer() {
-		boolean mReadPositionSyncSet = FileSelectActivity.getReadPositionSyncSet();
-		if (mImageMgr == null || mServer == DEF.INDEX_LOCAL || mFileName == null || mFileName.isEmpty() || !mReadPositionSyncSet) {
+		if (mImageMgr == null || mSyncHost == null) {
 			return;
 		}
 		int maxpage = mImageMgr.length();
 		if (maxpage <= 0) {
 			return;
 		}
-		String syncHost = new ServerSelect(mSharedPreferences, mActivity).getHost(mServer);
-		ReadPositionSyncClient.pushPosition(mSharedPreferences, syncHost, mPath, mFileName, mCurrentPage, maxpage, -1, -1f);
+		// 圏外で送れなかった分は、ReadPositionSyncClient側で保留され、次に通信できたときに送られる
+		ReadPositionSyncClient.pushPosition(mSharedPreferences, mSyncHost, mSyncPath, mSyncFile, mCurrentPage, maxpage, -1, -1f);
 	}
 
 	// アクティビティ一時停止時に保存される
