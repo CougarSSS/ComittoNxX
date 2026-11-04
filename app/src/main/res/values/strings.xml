@@ -1244,4 +1244,11 @@
     <string name="noHistoryDeleteConfirm">%1$d item(s) of this folder are in this device\'s history. Delete them from the history? (Server history and read positions are not changed.)</string>
     <string name="noHistoryDelete">Delete</string>
     <string name="noHistoryKeep">Keep</string>
+    <string name="noHistoryFolders">No-history folders</string>
+    <string name="noHistoryFoldersSummary">Books in these folders are not added to history</string>
+    <string name="noHistoryListEmpty">No folders registered</string>
+    <string name="noHistoryListTitle">No-history folders (tap to remove)</string>
+    <string name="noHistoryAddPath">Add path</string>
+    <string name="noHistoryAddHint">Folder path, e.g. /comics</string>
+    <string name="noHistoryRemoveConfirm">Remove this folder from the list?</string>
 </resources>

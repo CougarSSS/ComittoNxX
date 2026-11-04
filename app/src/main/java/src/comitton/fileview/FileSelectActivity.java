@@ -6993,7 +6993,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	}
 
 	// 書庫管理の巻一覧(ドリルダウン中)かどうか
-	// 閲覧履歴を残さないフォルダの登録/解除。登録時、端末の履歴に該当の本があれば消すか尋ねる(サーバー側は触らない)
+	// 閲覧履歴を残さないフォルダの登録/解除(パスだけで判定)。登録時、端末の履歴に該当の本があれば消すか尋ねる(サーバー側は触らない)
 	private void toggleNoHistoryFolder(final String folder) {
 		final String host = mServer.getHost();
 		if (NoHistoryFolders.isRegistered(mSharedPreferences, host, folder)) {
@@ -7007,8 +7007,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		int count = 0;
 		if (all != null) {
 			for (RecordItem item : all) {
-				if (NoHistoryFolders.isExcluded(mSharedPreferences, serverSel.getHost(item.getServer()), item)
-						&& item.getServer() == mServer.getSelect()) {
+				if (NoHistoryFolders.isExcluded(mSharedPreferences, serverSel.getHost(item.getServer()), item)) {
 					count++;
 				}
 			}
@@ -7025,8 +7024,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					public void onClick(DialogInterface dialog, int which) {
 						ArrayList<RecordItem> keep = new ArrayList<RecordItem>();
 						for (RecordItem item : all) {
-							if (!(item.getServer() == mServer.getSelect()
-									&& NoHistoryFolders.isExcluded(mSharedPreferences, serverSel.getHost(item.getServer()), item))) {
+							if (!NoHistoryFolders.isExcluded(mSharedPreferences, serverSel.getHost(item.getServer()), item)) {
 								keep.add(item);
 							}
 						}

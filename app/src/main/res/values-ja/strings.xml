@@ -1228,4 +1228,11 @@
     <string name="noHistoryDeleteConfirm">このフォルダの本が、この端末の履歴に%1$d件あります。履歴から消しますか?(サーバーの履歴・既読位置は変わりません)</string>
     <string name="noHistoryDelete">消す</string>
     <string name="noHistoryKeep">残す</string>
+    <string name="noHistoryFolders">閲覧履歴を残さないフォルダ</string>
+    <string name="noHistoryFoldersSummary">登録したフォルダの本は履歴に記録しません</string>
+    <string name="noHistoryListEmpty">登録されているフォルダはありません</string>
+    <string name="noHistoryListTitle">履歴を残さないフォルダ(タップで外す)</string>
+    <string name="noHistoryAddPath">パスを追加</string>
+    <string name="noHistoryAddHint">フォルダのパス 例: /漫画</string>
+    <string name="noHistoryRemoveConfirm">このフォルダを一覧から外しますか?</string>
 </resources>
