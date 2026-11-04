@@ -5951,7 +5951,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			String[] items = new String[3];
 			items[0] = res.getString(R.string.bm00);
 			items[1] = res.getString(R.string.bm01);
-			items[2] = res.getString(R.string.bm02);
+			items[2] = res.getString(listtype == RecordList.TYPE_HISTORY ? R.string.bm02History : R.string.bm02);
 			mListDialog = new ListDialog(this, R.style.MyDialog, title, items, -1, new ListSelectListener() {
 				@Override
 				public void onSelectItem(int item) {

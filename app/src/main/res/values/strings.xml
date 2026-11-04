@@ -358,6 +358,7 @@
     <string name="bm00">Open Folder</string>
     <string name="bm01">Edit Name</string>
     <string name="bm02">Delete Favorite</string>
+    <string name="bm02History">Delete from History</string>
     <string name="bmTitle">Favorite List</string>
     <string name="bmNotFound">There are no bookmarks.</string>
     <string name="contentsNotFound">There are no table of contents.</string>

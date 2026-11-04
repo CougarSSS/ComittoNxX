@@ -358,6 +358,7 @@
     <string name="bm00">ディレクトリを開く</string>
     <string name="bm01">名前の変更</string>
     <string name="bm02">ブックマークを削除</string>
+    <string name="bm02History">履歴から削除</string>
     <string name="bmTitle">ブックマーク一覧</string>
     <string name="bmNotFound">ブックマークはありません。</string>
     <string name="contentsNotFound">目次はありません。</string>
