@@ -10,7 +10,9 @@ import src.comitton.fileview.data.RecordItem;
  * 閲覧履歴を残さないフォルダの登録と判定。
  * 登録したフォルダ(サブフォルダ含む)の本は、端末の履歴にも同期サーバーの履歴にも載せない。
  * 既読位置と栞は対象外(今までどおり記録・同期する)。
- * 登録はパスだけで行い、接続先サーバーは区別しない(host引数は互換のために残してあり、使わない)。
+ * 登録は「共有名から始まるパス」で行い、接続先のIPアドレスは区別しない。
+ * SMBサーバーはホスト欄に共有名まで入る(例: 192.168.0.5/share)ので、
+ * ホストのIPより後ろの部分とアプリ内のパスをつなげたものを、本の完全なパスとして比べる。
  */
 public class NoHistoryFolders {
 	private static final String KEY = "NoHistoryFolders";
@@ -29,8 +31,35 @@ public class NoHistoryFolders {
 		return s;
 	}
 
-	private static String entry(String path) {
-		return normalize(path);
+	// ホスト欄のIPアドレスより後ろ(共有名以降)を返す。smb://やIPだけなら空
+	private static String hostPath(String host) {
+		if (host == null) {
+			return "";
+		}
+		String h = host.trim().replace('\\', '/');
+		int scheme = h.indexOf("://");
+		if (scheme >= 0) {
+			h = h.substring(scheme + 3);
+		}
+		int slash = h.indexOf('/');
+		return slash < 0 ? "" : h.substring(slash);
+	}
+
+	// ホストの共有名部分とパスをつないで正規化する
+	private static String fullPath(String host, String path) {
+		String p = normalize(path);
+		if (!p.isEmpty() && !p.startsWith("/")) {
+			p = "/" + p;
+		}
+		return normalize(hostPath(host)) + p;
+	}
+
+	private static String entry(String host, String path) {
+		// 設定画面で smb://IP/共有/フォルダ と入力された場合もIPまでを除く
+		if (path != null && path.contains("://")) {
+			return fullPath(path, "");
+		}
+		return fullPath(host, path);
 	}
 
 	public static ArrayList<String> load(SharedPreferences sp) {
@@ -38,10 +67,10 @@ public class NoHistoryFolders {
 		String saved = sp.getString(KEY, "");
 		if (saved != null && !saved.isEmpty()) {
 			for (String e : saved.split(ENTRY_SEP)) {
-				// 旧形式はサーバー名の部分を捨てる
+				// 旧形式(host + TAB + パス)は、ホスト欄の共有名部分とつなげた形に直す
 				int p = e.indexOf(HOST_SEP);
 				if (p >= 0) {
-					e = e.substring(p + 1);
+					e = fullPath(e.substring(0, p), e.substring(p + 1));
 				}
 				if (!e.isEmpty() && !list.contains(e)) {
 					list.add(e);
@@ -63,13 +92,13 @@ public class NoHistoryFolders {
 	}
 
 	public static boolean isRegistered(SharedPreferences sp, String host, String folder) {
-		return load(sp).contains(entry(folder));
+		return load(sp).contains(entry(host, folder));
 	}
 
 	public static void add(SharedPreferences sp, String host, String folder) {
 		ArrayList<String> list = load(sp);
-		String e = entry(folder);
-		if (!list.contains(e)) {
+		String e = entry(host, folder);
+		if (!e.isEmpty() && !list.contains(e)) {
 			list.add(e);
 			save(sp, list);
 		}
@@ -85,7 +114,7 @@ public class NoHistoryFolders {
 
 	public static void remove(SharedPreferences sp, String host, String folder) {
 		ArrayList<String> list = load(sp);
-		if (list.remove(entry(folder))) {
+		if (list.remove(entry(host, folder))) {
 			save(sp, list);
 		}
 	}
@@ -96,7 +125,7 @@ public class NoHistoryFolders {
 		if (list.isEmpty()) {
 			return false;
 		}
-		String book = normalize(path);
+		String book = fullPath(host, path);
 		String f = normalize(file);
 		if (!f.isEmpty()) {
 			book = book + "/" + f;
