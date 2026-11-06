@@ -241,6 +241,10 @@ public class SmbFileAccess {
 		return result;
 	}
 
+	private static final java.util.regex.Pattern SLASHES = java.util.regex.Pattern.compile("/+");
+	private static final java.util.regex.Pattern PARENT_MID = java.util.regex.Pattern.compile("[^/]+/\\.\\./");
+	private static final java.util.regex.Pattern PARENT_END = java.util.regex.Pattern.compile("[^/]+/\\.\\.$");
+
 	public static String relativePath(@NonNull final String base, @NonNull final String target) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します. base=" + base + ", target=" + target);
@@ -259,18 +263,20 @@ public class SmbFileAccess {
 		}
 
 		// 連続するスラッシュは1つにまとめる
-		result = result.replaceAll("/+", "/");
+		result = SLASHES.matcher(result).replaceAll("/");
 		result = result.replace("smb:/", "smb://");
-		// ../があれば親ディレクトリを削除
-		while (true) {
+		// ../があれば親ディレクトリを削除(書庫管理の既読集計など大量に呼ばれるため、無い場合は正規表現を使わない)
+		while (result.contains("/../")) {
 			tmp = result;
-			result = result.replaceFirst("[^/]+/\\.\\./", "");
+			result = PARENT_MID.matcher(result).replaceFirst("");
 			if (result.equals(tmp)) {
 				break;
 			}
 		}
 		// 末尾が..なら親ディレクトリを削除
-		result = result.replaceFirst("[^/]+/\\.\\.$", "");
+		if (result.endsWith("/..")) {
+			result = PARENT_END.matcher(result).replaceFirst("");
+		}
 
 		if (!result.startsWith(base)) {
 			// resultがbaseの子孫じゃなければ空文字列を返す
