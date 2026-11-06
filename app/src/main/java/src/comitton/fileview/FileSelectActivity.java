@@ -2814,6 +2814,36 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				int nextServer = Integer.parseInt(nextfile.getPath().substring(0, sep));
 				String nextDir = nextfile.getPath().substring(sep + 1);
 				boolean folderChanged = (mServer == null || mServer.getSelect() != nextServer || !nextDir.equals(mPath));
+				// 同じサーバーの画像書庫なら、フォルダ移動と一覧の読み込みをせずに直接ビューアを開く
+				// (書庫管理の画面を経由して一瞬見えるのを避ける)。戻ってきたときは、ビューアが返す
+				// LastPathとmPathの違いで通常どおり最後に読んだ巻のフォルダへ移動する。
+				if (folderChanged && mServer != null && mServer.getSelect() == nextServer
+						&& nextfile.getType() == FileData.FILETYPE_ARC) {
+					final String directDir = nextDir;
+					final FileData directFile = nextfile;
+					final int directOpen = nextopen;
+					new Handler(Looper.getMainLooper()).post(() -> {
+						String savedPath = mPath;
+						try {
+							mPath = directDir;
+							if (directOpen == CloseDialog.CLICK_NEXTLAST || directOpen == CloseDialog.CLICK_PREVLAST) {
+								// 最終ページから開く(CLICK_HISTORY経路と同じ既読位置の書き方)
+								mSharedPreferences.edit().putInt(DEF.createUrl(DEF.relativePath(mActivity, mURI, directDir, directFile.getName()), mServer.getUser(), mServer.getPass()), DEF.PAGENUMBER_READ).apply();
+							}
+							else {
+								// 先頭ページから開く(既存の再オープン経路の既定と同じ)
+								markOpenFromTop(directFile.getName());
+							}
+							releaseThumbnail();
+							openFile(directFile, "");
+						}
+						finally {
+							mPath = savedPath;
+						}
+					});
+					Logcat.w(logLevel, "書庫管理: 別フォルダの次ファイルを直接開きます. dir=" + nextDir + ", file=" + nextfile.getName());
+					return true;
+				}
 				if (folderChanged) {
 					Logcat.w(logLevel, "書庫管理: 次ファイルが別フォルダのため移動します. server=" + nextServer + ", dir=" + nextDir + ", file=" + nextfile.getName());
 					// nextOpenMain()はnextFileOpen()から別スレッドで呼ばれるが、moveFileSelectFromServer()は
