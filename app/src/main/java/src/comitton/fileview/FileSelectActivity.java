@@ -625,6 +625,50 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		MainProcess(intent, true);
 	}
 
+	// ビューアから戻って次の巻を開き直すあいだ、一覧画面が一瞬見えないように黒い幕をかぶせる。
+	// 次のビューアが開いてこの画面が止まるとき(onStop)、開けなかったとき、一定時間後に外す。
+	private View mNextOpenCover;
+
+	private void showNextOpenCover() {
+		if (mNextOpenCover != null) {
+			return;
+		}
+		try {
+			View cover = new View(this);
+			cover.setBackgroundColor(Color.BLACK);
+			cover.setClickable(true);
+			addContentView(cover, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+			mNextOpenCover = cover;
+			cover.postDelayed(() -> hideNextOpenCover(), 5000);
+		}
+		catch (Exception e) {
+			Logcat.e(Logcat.LOG_LEVEL_WARN, "Failed to show cover: " + e.getMessage(), e);
+		}
+	}
+
+	private void hideNextOpenCover() {
+		final View cover = mNextOpenCover;
+		if (cover == null) {
+			return;
+		}
+		mNextOpenCover = null;
+		new Handler(Looper.getMainLooper()).post(() -> {
+			try {
+				if (cover.getParent() instanceof ViewGroup) {
+					((ViewGroup) cover.getParent()).removeView(cover);
+				}
+			}
+			catch (Exception e) {
+			}
+		});
+	}
+
+	@Override
+	protected void onStop() {
+		super.onStop();
+		hideNextOpenCover();
+	}
+
 	@Override
 	protected void onPause() {
 		super.onPause();
@@ -2583,6 +2627,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						if (nextopen != CloseDialog.CLICK_CLOSE) {
 							// 次のファイルを開く場合
 							Logcat.d(logLevel, "nextopen != CloseDialog.CLICK_CLOSE");
+							showNextOpenCover();
 							if (mIsLoading || mFileList.getFileList() == null) {
 								Logcat.d(logLevel, "mIsLoading == true");
 								// リストデータがない場合は読み込むまで待つ
@@ -3046,6 +3091,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				}
 			}
 		}
+		// 次のファイルを開けなかった(リストの端など): 一覧画面を見せる
+		hideNextOpenCover();
 		return false;
 	}
 
