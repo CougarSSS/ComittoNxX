@@ -2743,6 +2743,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private boolean nextFileOpen(int nextopen, String path, String file, String infile, int type, int page) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します. nextopen=" + nextopen + ", path=" + path + ", file=" + file + ", infile=" + infile + ", type=" + type + ", page=" + page);
+		if (tryFastNextOpen(nextopen, path, file)) {
+			return true;
+		}
 		// 次のファイル検索をバックグラウンドで実行
 		final FileData[] nextfile =  {null};
 		// 次のファイル検索。書庫管理タブから開いた場合は、作品を跨いだ「一覧全体」での
@@ -2822,6 +2825,118 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 		return result[0];
 	}
 
+	// 指定した巻を、一覧のフォルダを移動せずに直接開く(メインスレッドで呼ぶ)。
+	// lastPage=trueなら最終ページ、fromTop=trueなら既読位置を無視して先頭ページ、どちらもfalseなら既読位置から。
+	private void openNextDirect(FileData fd, String dir, boolean lastPage, boolean fromTop) {
+		String savedPath = mPath;
+		try {
+			mPath = dir;
+			if (lastPage) {
+				// 最終ページから開く(CLICK_HISTORY経路と同じ既読位置の書き方)
+				mSharedPreferences.edit().putInt(DEF.createUrl(DEF.relativePath(mActivity, mURI, dir, fd.getName()), mServer.getUser(), mServer.getPass()), DEF.PAGENUMBER_READ).apply();
+			}
+			else if (fromTop) {
+				markOpenFromTop(fd.getName());
+			}
+			releaseThumbnail();
+			openFile(fd, "");
+		}
+		finally {
+			mPath = savedPath;
+		}
+	}
+
+	// ビューアを開いている間に、次の巻と前の巻を先に探して覚えておく。ビューアから「次へ/前へ」で
+	// 戻ったとき、覚えた結果で即座に(一覧を描画する前に)次のビューアを開くため。
+	private ArrayList<FileData> mPrefetchBase;
+	private int mPrefetchBaseSize;
+	private String mPrefetchFile;
+	private FileData mPrefetchNext;
+	private FileData mPrefetchPrev;
+	private volatile boolean mPrefetchReady = false;
+	private int mPrefetchToken = 0;
+
+	private void prefetchNextPrev(final String name) {
+		final ArrayList<FileData> base = (mLibraryVirtualFileList != null) ? mLibraryVirtualFileList : mFileList.getFileList();
+		mPrefetchReady = false;
+		if (base == null || name == null || name.isEmpty()) {
+			return;
+		}
+		final int token = ++mPrefetchToken;
+		new Thread(() -> {
+			try {
+				FileData next = searchNextFile(base, name, CloseDialog.CLICK_NEXT);
+				FileData prev = searchNextFile(base, name, CloseDialog.CLICK_PREV);
+				if (token == mPrefetchToken) {
+					mPrefetchBase = base;
+					mPrefetchBaseSize = base.size();
+					mPrefetchFile = name;
+					mPrefetchNext = next;
+					mPrefetchPrev = prev;
+					mPrefetchReady = true;
+				}
+			}
+			catch (Exception e) {
+				Logcat.e(Logcat.LOG_LEVEL_WARN, "prefetchNextPrev failed: " + e.getMessage(), e);
+			}
+		}).start();
+	}
+
+	// 先に探しておいた結果で、ダイアログやスレッドを経由せずにその場で次/前の巻を開く。
+	// 開けない条件(最終ページから開く、ページ数が未確定で書庫を読む、青空文庫の判定が要る、別サーバー、
+	// 一覧が変わった、等)のときはfalseを返し、従来の経路(別スレッドで探して開く)に任せる。
+	private boolean tryFastNextOpen(int nextopen, String path, String file) {
+		int logLevel = Logcat.LOG_LEVEL_WARN;
+		boolean next = (nextopen == CloseDialog.CLICK_NEXT || nextopen == CloseDialog.CLICK_NEXTTOP);
+		boolean prev = (nextopen == CloseDialog.CLICK_PREV || nextopen == CloseDialog.CLICK_PREVTOP);
+		if (!next && !prev) {
+			return false;
+		}
+		boolean top = (nextopen == CloseDialog.CLICK_NEXTTOP || nextopen == CloseDialog.CLICK_PREVTOP);
+		if (!mPrefetchReady || file == null || !file.equals(mPrefetchFile)) {
+			return false;
+		}
+		ArrayList<FileData> base = (mLibraryVirtualFileList != null) ? mLibraryVirtualFileList : mFileList.getFileList();
+		if (base == null || base != mPrefetchBase || base.size() != mPrefetchBaseSize) {
+			return false;
+		}
+		FileData target = next ? mPrefetchNext : mPrefetchPrev;
+		if (target == null || target.getName() == null || target.getName().isEmpty()) {
+			return false;
+		}
+		int type = target.getType();
+		if (!((type == FileData.FILETYPE_ARC && !mAozoraZipFile) || type == FileData.FILETYPE_PDF)) {
+			return false;
+		}
+		String dir = mPath;
+		boolean fromTop = top;
+		if (mLibraryVirtualFileList != null) {
+			if (!mLibrarySyncSet || target.getPath() == null) {
+				return false;
+			}
+			int sep = target.getPath().indexOf('|');
+			if (sep <= 0) {
+				return false;
+			}
+			int nextServer = Integer.parseInt(target.getPath().substring(0, sep));
+			String nextDir = target.getPath().substring(sep + 1);
+			if (mServer == null || mServer.getSelect() != nextServer || type != FileData.FILETYPE_ARC) {
+				return false;
+			}
+			if (!nextDir.equals(mPath)) {
+				// 別フォルダの巻は、従来どおり先頭ページから開く
+				dir = nextDir;
+				fromTop = true;
+			}
+		}
+		else if (path == null || !path.equals(mPath)) {
+			return false;
+		}
+		Logcat.w(logLevel, "次/前の巻を先読み結果で直接開きます. dir=" + dir + ", file=" + target.getName() + ", nextopen=" + nextopen);
+		openNextDirect(target, dir, false, fromTop);
+		return true;
+	}
+
 	// 「先頭ページで開く」指定のファイル名と指定時刻。ImageActivityが開く際に参照し、
 	// ローカル/サーバーの既読位置を無視して先頭ページから開く(既読記録自体は消さない)。
 	private static String sOpenFromTopFile;
@@ -2866,26 +2981,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						&& nextfile.getType() == FileData.FILETYPE_ARC) {
 					final String directDir = nextDir;
 					final FileData directFile = nextfile;
-					final int directOpen = nextopen;
-					new Handler(Looper.getMainLooper()).post(() -> {
-						String savedPath = mPath;
-						try {
-							mPath = directDir;
-							if (directOpen == CloseDialog.CLICK_NEXTLAST || directOpen == CloseDialog.CLICK_PREVLAST) {
-								// 最終ページから開く(CLICK_HISTORY経路と同じ既読位置の書き方)
-								mSharedPreferences.edit().putInt(DEF.createUrl(DEF.relativePath(mActivity, mURI, directDir, directFile.getName()), mServer.getUser(), mServer.getPass()), DEF.PAGENUMBER_READ).apply();
-							}
-							else {
-								// 先頭ページから開く(既存の再オープン経路の既定と同じ)
-								markOpenFromTop(directFile.getName());
-							}
-							releaseThumbnail();
-							openFile(directFile, "");
-						}
-						finally {
-							mPath = savedPath;
-						}
-					});
+					final boolean directLast = (nextopen == CloseDialog.CLICK_NEXTLAST || nextopen == CloseDialog.CLICK_PREVLAST);
+					new Handler(Looper.getMainLooper()).post(() -> openNextDirect(directFile, directDir, directLast, !directLast));
 					Logcat.w(logLevel, "書庫管理: 別フォルダの次ファイルを直接開きます. dir=" + nextDir + ", file=" + nextfile.getName());
 					return true;
 				}
@@ -8293,6 +8390,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			// ... 他の共通Extra ...
 			setupCommonExtras(intent, name);
 			startActivityForResult(intent, DEF.REQUEST_IMAGE);
+			// ビューアで読んでいる間に、次の巻と前の巻を探しておく
+			prefetchNextPrev(name);
 		}
 	}
 
