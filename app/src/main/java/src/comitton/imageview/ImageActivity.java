@@ -1327,6 +1327,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			int t = (int) (now - mEffectStart);
 			if (mEffect != 0 && t >= mEffectTime) {
 				// エフェクト中でない場合は mBitmapLoading を終了させる
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "読み込み中の固まりを解除します(応急処置). t=" + t + ", mEffectTime=" + mEffectTime + ", mEffectRate=" + mEffectRate);
 				startViewTimer(DEF.HMSG_EVENT_EFFECT_NEXT);
 			}
 		}
@@ -1907,6 +1908,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				}
 				if (mEffectRate == 0.0f) {
 					// エフェクトの終わりには以前のページ表示をしない
+					Logcat.w(Logcat.LOG_LEVEL_WARN, "エフェクト終了. what=" + msg.what + ", t=" + t + ", mEffectTime=" + mEffectTime + ", mBitmapLoading=" + mBitmapLoading);
 					mImageView.createBackground(false);
 				}
 				// エフェクト位置
@@ -1975,6 +1977,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 			case DEF.HMSG_LOAD_END: // 画像読み込み終了
 				Logcat.v(logLevel, "HMSG_LOAD_END: mEffectRate=" + mEffectRate);
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "画像読み込み完了. mBitmapLoading=" + mBitmapLoading + ", mEffect=" + mEffect + ", mPageSelecting=" + mPageSelecting + ", mEffectRate=" + mEffectRate);
 				if (mBitmapLoading) {
 					// ここでフラグをクリア
 					mBitmapLoading = false;
@@ -3003,6 +3006,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			if (mEffect != 0 && t >= mEffectTime) {
 				// なぜか固まることがあるので暫定で実施
 				// エフェクト中でない場合は mBitmapLoading を終了させる
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "読み込み中の固まりを解除します(応急処置). t=" + t + ", mEffectTime=" + mEffectTime + ", mEffectRate=" + mEffectRate);
 				startViewTimer(DEF.HMSG_EVENT_EFFECT_NEXT);
 			}
 			// エフェクト中であればタッチを無視する
@@ -5537,6 +5541,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			if (mEffect != 0 && t >= mEffectTime) {
 				// なぜか固まることがあるので暫定で実施
 				// エフェクト中でない場合は mBitmapLoading を終了させる
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "読み込み中の固まりを解除します(応急処置). t=" + t + ", mEffectTime=" + mEffectTime + ", mEffectRate=" + mEffectRate);
 				startViewTimer(DEF.HMSG_EVENT_EFFECT_NEXT);
 			}
 
@@ -7419,6 +7424,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		if (event == DEF.HMSG_EVENT_EFFECT) {
 			// エフェクト開始
 			if (mEffectTime > 0) {
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "エフェクト開始. mEffectTime=" + mEffectTime + ", mBitmapLoading=" + mBitmapLoading);
 				mEffectRate = 0.99f * (mPageBack ? -1 : 1) * (mPageWay != DEF.PAGEWAY_LEFT ? 1 : -1);
 				mEffectStart = NextTime;
 				// mImageView.setEffectRate(mEffectRate);
