@@ -26,6 +26,7 @@ public class LocalBookOrigin {
 
 	// 直前の判定結果(同じファイルを開き直すたびに全件を走査しない)
 	private static String sLastKey;
+	private static int sLastCacheVersion = -1;
 	private static Origin sLastValue;
 
 	public static synchronized Origin resolve(Context context, SharedPreferences sp, String localFilePath) {
@@ -39,7 +40,9 @@ public class LocalBookOrigin {
 		}
 		long size = local.length();
 		String key = localFilePath + "|" + size + "|" + local.lastModified();
-		if (key.equals(sLastKey)) {
+		// 書庫管理のキャッシュが更新されたら、前回「一致なし」だった本も判定し直す
+		int cacheVersion = LibraryCache.getVersion();
+		if (key.equals(sLastKey) && cacheVersion == sLastCacheVersion) {
 			return sLastValue;
 		}
 
@@ -60,6 +63,7 @@ public class LocalBookOrigin {
 			Logcat.d(logLevel, "書庫管理に一意に一致する本が無いため、既読位置は共有しません. name=" + name + ", size=" + size + ", 一致数=" + count);
 		}
 		sLastKey = key;
+		sLastCacheVersion = cacheVersion;
 		sLastValue = result;
 		return result;
 	}

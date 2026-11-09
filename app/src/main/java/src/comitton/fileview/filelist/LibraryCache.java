@@ -37,6 +37,8 @@ public class LibraryCache {
     private static final String VOLUMES_PREFIX = "v:";
 
     private static ArrayList<LibraryEntry> sCache;
+    // sCacheの中身が変わるたびに増やす。LocalBookOrigin等が、判定結果を覚えておいてよいか調べるのに使う。
+    private static int sVersion = 0;
     // buildWorkList()の結果キャッシュ。作品数×全体正規表現グルーピングは全1万件超だと
     // メインスレッドで数秒かかりうる重い処理のため、タブ再表示/巻オープンのたびに
     // 再計算しない(merge()でデータが変わった時だけ無効化する)。
@@ -53,12 +55,19 @@ public class LibraryCache {
     /**
      * メモリキャッシュ(初回呼び出し時にディスクから遅延ロード)を返す。
      * 呼び出し元はこのリストを直接書き換えないこと(merge()経由で更新する)。
+     * merge()/removeEntries()/clearAll()は、このリストを書き換えず新しいリストに差し替えるため、
+     * 取得したリストを別スレッドで走査していても、走査中に中身が変わることはない。
      */
     public static synchronized ArrayList<LibraryEntry> getEntries() {
         if (sCache == null) {
             sCache = loadFromDisk();
         }
         return sCache;
+    }
+
+    /** キャッシュの中身が変わるたびに増える番号 */
+    public static synchronized int getVersion() {
+        return sVersion;
     }
 
     /**
@@ -73,7 +82,7 @@ public class LibraryCache {
         for (LibraryEntry t : targets) {
             keys.add(t.key());
         }
-        ArrayList<LibraryEntry> current = getEntries();
+        ArrayList<LibraryEntry> current = new ArrayList<>(getEntries());
         int before = current.size();
         for (int i = current.size() - 1; i >= 0; i--) {
             if (keys.contains(current.get(i).key())) {
@@ -82,6 +91,8 @@ public class LibraryCache {
         }
         int removed = before - current.size();
         if (removed > 0) {
+            sCache = current;
+            sVersion++;
             saveToDisk(current);
             sWorkListDirty = true;
         }
@@ -99,6 +110,7 @@ public class LibraryCache {
     public static synchronized void clearAll() {
         int logLevel = Logcat.LOG_LEVEL_WARN;
         sCache = new ArrayList<>();
+        sVersion++;
         sWorkListCache = null;
         sWorkListDirty = true;
         File file = new File(getFilePath());
@@ -210,7 +222,7 @@ public class LibraryCache {
             Logcat.w(logLevel, "merge: newEntriesが空のため何もしない");
             return 0;
         }
-        ArrayList<LibraryEntry> current = getEntries();
+        ArrayList<LibraryEntry> current = new ArrayList<>(getEntries());
         HashMap<String, Integer> indexByKey = new HashMap<>();
         for (int i = 0; i < current.size(); i++) {
             indexByKey.put(current.get(i).key(), i);
@@ -229,6 +241,8 @@ public class LibraryCache {
                 added++;
             }
         }
+        sCache = current;
+        sVersion++;
         saveToDisk(current);
         sWorkListDirty = true;
         Logcat.w(logLevel, "merge: 受信" + newEntries.size() + "件 → 新規" + added + "件、更新" + updated + "件、マージ後合計" + current.size() + "件");
