@@ -2323,7 +2323,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				// 値を保存
 				mPinchScaleSel = mPinchScale;
 				Editor ed = mSharedPreferences.edit();
-				ed.putString(DEF.KEY_PinchScale, Integer.toString(mPinchScale));
+				savePinchScale(ed, mPinchScale);
 				ed.apply();
 				break;
 			case DEF.HMSG_EVENT_ZOOMLEVELUNDO:
@@ -2928,6 +2928,29 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		setBitmapImage();
 	}
 
+	// ズーム倍率(ピンチ操作の結果)は書庫ごとに保存する。保存がなければ100%。
+	private String pinchScaleKey() {
+		return DEF.createUrl(mFilePath, mUser, mPass) + "#pinchscale";
+	}
+
+	private int loadPinchScale(SharedPreferences sp) {
+		int val = sp.getInt(pinchScaleKey(), 100);
+		if (val < 0 || val > 250) {
+			val = 100;
+		}
+		return val;
+	}
+
+	private void savePinchScale(Editor ed, int val) {
+		if (val == 100) {
+			// 既定値は保存しない(設定の肥大化を避ける)
+			ed.remove(pinchScaleKey());
+		}
+		else {
+			ed.putInt(pinchScaleKey(), val);
+		}
+	}
+
 	private void setMgrConfig(boolean scaleinit) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します. scaleinit=" + scaleinit);
@@ -2940,7 +2963,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		if (scaleinit) {
 			SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
 			synchronized (mImageView) {
-				mPinchScale = SetImageActivity.getPinScale(sharedPreferences);
+				mPinchScale = loadPinchScale(sharedPreferences);
 				mImageMgr.setImageScale(mPinchScale);
 				ImageScaling();
 			}
@@ -3204,7 +3227,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
     					mImageView.update(true);
 
 						Editor ed = mSharedPreferences.edit();
-						ed.putString(DEF.KEY_PinchScale, Integer.toString(mPinchScale));
+						savePinchScale(ed, mPinchScale);
 						ed.apply();
     				}
 					// バックグラウンドでのキャッシュ読み込み再開
@@ -4079,7 +4102,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			if (mMakeZoomSameAsPinch) {
 				// ズームとピンチインアウトを共通にする場合はスケーリングを保存
 				Editor ed = mSharedPreferences.edit();
-				ed.putString(DEF.KEY_PinchScale, Integer.toString(mPinchScale));
+				savePinchScale(ed, mPinchScale);
 				ed.apply();
 			}
 		}
@@ -4334,7 +4357,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 					if (mMakeZoomSameAsPinch) {
 						// ズームとピンチインアウトを共通にする場合はスケーリングを保存
 						Editor ed = mSharedPreferences.edit();
-						ed.putString(DEF.KEY_PinchScale, Integer.toString(mPinchScaleSel));
+						savePinchScale(ed, mPinchScaleSel);
 						ed.apply();
 					}
 					// 直前のメッセージを取り消す
@@ -4366,7 +4389,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 					if (mMakeZoomSameAsPinch) {
 						// ズームとピンチインアウトを共通にする場合はスケーリングを保存
 						Editor ed = mSharedPreferences.edit();
-						ed.putString(DEF.KEY_PinchScale, Integer.toString(mPinchScaleSel));
+						savePinchScale(ed, mPinchScaleSel);
 						ed.apply();
 					}
 					// 直前のメッセージを取り消す
@@ -4706,7 +4729,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 						if (mMakeZoomSameAsPinch) {
 							// ズームとピンチインアウトを共通にする場合はスケーリングを保存
 							Editor ed = mSharedPreferences.edit();
-							ed.putString(DEF.KEY_PinchScale, Integer.toString(mPinchScale));
+							savePinchScale(ed, mPinchScale);
 							ed.apply();
 						}
 						// 直前のメッセージを取り消す
@@ -6920,7 +6943,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			mColoring = SetImageActivity.getColoring(sharedPreferences);
 			mMoire = SetImageActivity.getMoire(sharedPreferences);
 			mTopSingle = SetImageActivity.getTopSingle(sharedPreferences);
-			mPinchScale = SetImageActivity.getPinScale(sharedPreferences);
+			mPinchScale = loadPinchScale(sharedPreferences);
 			mPinchScaleSel = mPinchScale;
 
 			mScrlRngW = DEF.calcScrlRange(SetImageDetailActivity.getScrlRngW(sharedPreferences));
