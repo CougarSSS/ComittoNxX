@@ -1113,6 +1113,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 			getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
 				@Override
 				public void handleOnBackPressed() {
+					// 戻るジェスチャーに横取りされたタッチの押下状態を解除する
+					cancelTouchState();
 					// 既存の operationBack() を呼び出す
 					operationBack();
 				}
@@ -1404,6 +1406,10 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		if (mClickGuard) {
 			mClickGuard = false;
 		}
+		if (!hasFocus && mTapOnOff) {
+			// フォーカスを失ったら指を離す通知が届かないことがあるので、押下状態を解除する
+			cancelTouchState();
+		}
 		/*
 		 * if (hasFocus) { if (mInitFlg == 0) { // 起動直後のみ呼び出し mInitFlg = 1;
 		 *
@@ -1571,8 +1577,18 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	public boolean dispatchKeyEvent(KeyEvent event) {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
 		Logcat.d(logLevel, "開始します.");
+		if (event.getRepeatCount() == 0) {
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] key code=" + KeyEvent.keyCodeToString(event.getKeyCode()) + " action=" + event.getAction() + " page=" + mCurrentPage);
+		}
 
 		int code = event.getKeyCode();
+
+		if (code == KeyEvent.KEYCODE_BACK && event.getAction() == KeyEvent.ACTION_DOWN && mTapOnOff) {
+			// 画面端からの戻るジェスチャーは、指を離した通知もタッチの取り消しも届かないまま
+			// 戻るキーだけが届く。押下状態が残ると長押しルーペが出たままになるので、ここで解除する
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] 戻るキーで押下状態を解除");
+			cancelTouchState();
+		}
 
 		int found_code = -1;
 		int data;
@@ -1837,7 +1853,8 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				if (mLongTouchCount == msg.arg1 && !mDoubleTapGuardOn && !mZoomOff) {
 					// 最新のタイマーの時だけ処理
 					// ダブルタップの処理があった場合は長押しと判断されてしまうので無視する
-					if (mTouchFirst) {
+					if (mTouchFirst && mTapOnOff && !mBitmapLoading) {
+						// 指が触れている間だけルーペを出す(離した後や読み込み中には出さない)
 						if (mVibFlag) {
 							// 振動
 							mVibrator.vibrate(TIME_VIB_RANGE);
@@ -1986,6 +2003,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 			case DEF.HMSG_LOAD_END: // 画像読み込み終了
 				Logcat.v(logLevel, "HMSG_LOAD_END: mEffectRate=" + mEffectRate);
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] loadEnd page=" + mCurrentPage + " effRate=" + mEffectRate);
 				Logcat.w(Logcat.LOG_LEVEL_WARN, "画像読み込み完了. mBitmapLoading=" + mBitmapLoading + ", mEffect=" + mEffect + ", mPageSelecting=" + mPageSelecting + ", mEffectRate=" + mEffectRate);
 				if (mBitmapLoading) {
 					// ここでフラグをクリア
@@ -3015,8 +3033,40 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 	 *
 	 * @return タッチ操作を他の View へ伝搬しないなら true。する場合は false。
 	 */
+	// 診断用: 操作の記録(PC側で [DBG] 行を3時間分だけ残す)
+	private long mDbgLastMoveLog;
+	private void dbgTouch(MotionEvent event) {
+		int act = event.getActionMasked();
+		long now = SystemClock.uptimeMillis();
+		if (act == MotionEvent.ACTION_MOVE && now - mDbgLastMoveLog < 100) {
+			return;
+		}
+		mDbgLastMoveLog = now;
+		StringBuilder sb = new StringBuilder("[DBG] touch act=").append(MotionEvent.actionToString(act))
+				.append(" n=").append(event.getPointerCount());
+		for (int i = 0; i < event.getPointerCount() && i < 3; i++) {
+			sb.append(" (").append((int) event.getX(i)).append(",").append((int) event.getY(i)).append(")");
+		}
+		sb.append(" page=").append(mCurrentPage).append(" effRate=").append(mEffectRate)
+				.append(" longTouch=").append(mLongTouchMode).append(" loading=").append(mBitmapLoading);
+		Logcat.w(Logcat.LOG_LEVEL_WARN, sb.toString());
+	}
+
+	public boolean dispatchTouchEvent(MotionEvent ev) {
+		int act = ev.getActionMasked();
+		if (act == MotionEvent.ACTION_CANCEL) {
+			// システムにタッチを横取りされた(画面端の戻るジェスチャーなど)。
+			// この通知は途中の View に消費されて onTouchEvent まで届かないことがあるので、入口で押下状態を解除する
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] dispatch CANCEL flags=0x" + Integer.toHexString(ev.getFlags()));
+			cancelTouchState();
+		}
+		return super.dispatchTouchEvent(ev);
+	}
+
+	@Override
 	public boolean onTouchEvent(MotionEvent event){
 		int logLevel = Logcat.LOG_LEVEL_WARN;
+		dbgTouch(event);
 		Logcat.d(logLevel, "開始します.");
 
 		if (mAutoPlay) {
@@ -3056,6 +3106,12 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				startViewTimer(DEF.HMSG_EVENT_EFFECT_NEXT);
 			}
 			// エフェクト中であればタッチを無視する
+			int droppedAction = event.getActionMasked();
+			if (droppedAction == MotionEvent.ACTION_UP || droppedAction == MotionEvent.ACTION_CANCEL) {
+				// 指が離れたことまで捨てると「押したまま」の状態が残り、
+				// 長押しルーペが指を離した後に出て消えなくなるので、ここで押下状態を解除する
+				cancelTouchState();
+			}
 			return true;
 		}
 
@@ -3645,9 +3701,53 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 				mClickGuard = false;
 			}
 			Action_Up_Sub(event);
+			// 押してる間のフラグクリア(ここを通ると長押しタイマーが指を離した後に発動していた)
+			mLongTouchCount ++;
+			mTouchFirst = false;
+			mOperation = TOUCH_NONE;
+			this.mTouchMove = false;
 			mTapOnOff = false;
 		}
+		if (action == MotionEvent.ACTION_CANCEL) {
+			// GestureDetector は ACTION_CANCEL で false を返すので、上の switch の ACTION_CANCEL には来ない。
+			// システムにタッチを横取りされた場合(画面端からの戻るジェスチャーなど)はここで押下状態を解除する
+			cancelTouchState();
+		}
 		return super.onTouchEvent(event);
+	}
+
+	/**
+	 * 押下中の状態をすべて解除する(指を離す操作を受け取れなかったとき用)。
+	 * 待機中の長押しタイマーを無効にし、ルーペが出ていれば消す。
+	 */
+	private void cancelTouchState() {
+		mLongTouchCount ++;
+		if (mLongTouchMode) {
+			// ズーム表示解除
+			if (mImageView != null) {
+				mImageView.setZoomMode(false);
+			}
+			mLongTouchMode = false;
+			// バックグラウンドでのキャッシュ読み込み再開
+			if (mBackgroundPause) {
+				startViewTimer(DEF.HMSG_EVENT_BACKGROUND_CACHE);
+			}
+		}
+		mTouchFirst = false;
+		mOperation = TOUCH_NONE;
+		this.mTouchMove = false;
+		mPinchOn = false;
+		mPinchDown = false;
+		mDoubleTapGuardOn = false;
+		mTapOnOff = false;
+		mClickGuard = false;
+		mImmCancel = false;
+		if (mGuideView != null) {
+			// 上部/下部選択中の状態解除
+			mGuideView.eventTouchCancel();
+			// ページ選択中解除
+			mGuideView.setGuideIndex(GuideView.GUIDE_NONE);
+		}
 	}
 
 	// タップの解除の部分をイベント処理から分離
@@ -7200,6 +7300,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 	public void nextPage() {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] op nextPage page=" + mCurrentPage + " effRate=" + mEffectRate + " loading=" + mBitmapLoading);
 		Logcat.d(logLevel, "開始します.");
 
 		// 次ページへ
@@ -7253,6 +7354,7 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 
 	public void prevPage() {
 		int logLevel = Logcat.LOG_LEVEL_WARN;
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] op prevPage page=" + mCurrentPage + " effRate=" + mEffectRate + " loading=" + mBitmapLoading);
 		Logcat.d(logLevel, "開始します.");
 
 		// 前ページへ

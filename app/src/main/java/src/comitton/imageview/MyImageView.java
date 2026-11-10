@@ -228,6 +228,17 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 		mIsRunning = true;
 		mLastNotifyTime = System.currentTimeMillis();
 
+		// 可変リフレッシュレートのパネルで、静止画表示中に120Hz<->低Hzの切り替えが起きて
+		// 点滅するのを避けるため、描画面に60Hz固定の希望を伝える(Android 11以降)。
+		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+			try {
+				holder.getSurface().setFrameRate(60.0f, android.view.Surface.FRAME_RATE_COMPATIBILITY_FIXED_SOURCE);
+			}
+			catch (Exception e) {
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "フレームレートの指定に失敗しました.", e);
+			}
+		}
+
 		Choreographer.getInstance().postFrameCallback(mFrameCallback);
 		// 描画スレッド起動
 		mUpdateThread = new Thread(this);
@@ -470,6 +481,26 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 	private int mDbgBlank;
 	private long mDbgLastLog;
 
+	// 診断用(PC側で DBG タグの行だけ別ファイルに分け、3時間で上書きする)。
+	// 効果中・ルーペ・ピンチ・旧ページ表示中は毎回、それ以外は1秒に1回だけ出す。
+	private long mDbgLastDrawLog;
+	private void dbgDraw(float effectRate, boolean isBackDraw, int zoomMode, int pinchsel, int drawLeft, int drawTop) {
+		long now = SystemClock.uptimeMillis();
+		boolean busy = effectRate != 0.0f || isBackDraw || zoomMode != ZOOM_NONE || pinchsel != 0 || mViewSw;
+		if (!busy && now - mDbgLastDrawLog < 1000) {
+			return;
+		}
+		mDbgLastDrawLog = now;
+		ImageData i0 = mImage[0];
+		ImageData i1 = mImage[1];
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] draw p0=" + (i0 != null ? i0.Page + ":" + i0.SclWidth + "x" + i0.SclHeight : "-")
+				+ " p1=" + (i1 != null ? i1.Page + ":" + i1.SclWidth + "x" + i1.SclHeight : "-")
+				+ " eff=" + effectRate + " back=" + isBackDraw + "/" + (mBackBitmap != null)
+				+ " zoom=" + zoomMode + " pinch=" + pinchsel + " viewSw=" + mViewSw
+				+ " pos=" + drawLeft + "," + drawTop + " touch=" + mTouchX + "," + mTouchY
+				+ " old=" + mOldPage + " view=" + getWidth() + "x" + getHeight());
+	}
+
 	private void logDrawState() {
 		mDbgFrames++;
 		boolean blank = (mImage[0] == null && mImage[1] == null) || mCanvasBitmap == null;
@@ -557,6 +588,9 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 			pseLand = mPseLand;
 			pinchsel = mPinchSel;
 			effect = mEffect;
+			if (!isCreateBack) {
+				dbgDraw(effectRate, isBackDraw, zoomMode, pinchsel, drawLeft, drawTop);
+			}
 
     		int cx;
     		int cy;
@@ -3620,6 +3654,11 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 		}
 
 //		mZoomFlag = mode;
+		// 診断用: ルーペ(拡大表示)の表示/解除の記録
+		if (mode != (mZoomMode != ZOOM_NONE))
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "[DBG] ルーペ切替. mode=" + mode + " 旧zoomMode=" + mZoomMode + " touch=" + mTouchX + "," + mTouchY
+				+ " page0=" + (mImage[0] != null ? mImage[0].Page : -1) + " page1=" + (mImage[1] != null ? mImage[1].Page : -1)
+				+ " effectRate=" + mEffectRate + " viewSw=" + mViewSw);
 		if (mode) {
 			mZoomMode = ZOOM_NONE;
 			// 拡大表示の位置を決める
