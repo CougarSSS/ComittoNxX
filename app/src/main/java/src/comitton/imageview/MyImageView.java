@@ -439,14 +439,15 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 		try {
 			canvas = surfaceHolder.lockCanvas(); // ロックして、書き込み用のcanvasを受け取る
 			if (canvas == null) {
-				Logcat.d(logLevel, "canvasが受け取れませんでした.");
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "canvasが受け取れませんでした. thread=" + Thread.currentThread().getName());
 				return false; // canvasが受け取れてなかったら抜ける
 			}
 
 			draw(canvas, false);
+			logDrawState();
 		}
 		catch (Exception e) {
-				Logcat.e(logLevel, "エラーが発生しました.", e);
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "描画でエラー. thread=" + Thread.currentThread().getName(), e);
 		}
         finally {
 			if (canvas != null) {
@@ -462,6 +463,35 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 			}
 		}
 		return true;
+	}
+
+	// 診断用: 点滅などの不具合調査のため、描画の状態を1秒ごとに(異常があるときだけ)記録する
+	private int mDbgFrames;
+	private int mDbgBlank;
+	private long mDbgLastLog;
+
+	private void logDrawState() {
+		mDbgFrames++;
+		boolean blank = (mImage[0] == null && mImage[1] == null) || mCanvasBitmap == null;
+		if (blank) {
+			mDbgBlank++;
+		}
+		long now = SystemClock.uptimeMillis();
+		if (now - mDbgLastLog < 1000) {
+			return;
+		}
+		boolean abnormal = mDbgBlank > 0 || mEffectRate != 0.0f || mIsBackDraw;
+		if (abnormal) {
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "描画状態. frames=" + mDbgFrames + " blank=" + mDbgBlank
+					+ " effectRate=" + mEffectRate + " isBackDraw=" + mIsBackDraw
+					+ " img0=" + (mImage[0] != null) + " img1=" + (mImage[1] != null)
+					+ " canvasBmp=" + (mCanvasBitmap != null) + " backBmp=" + (mBackBitmap != null)
+					+ " drawLeft=" + mDrawLeft + " drawTop=" + mDrawTop + " drawLock=" + mDrawLock
+					+ " size=" + getWidth() + "x" + getHeight());
+		}
+		mDbgFrames = 0;
+		mDbgBlank = 0;
+		mDbgLastLog = now;
 	}
 
 	public void attenuate() {
@@ -515,6 +545,14 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 			touchY = mTouchY;
 			isBackDraw = mIsBackDraw;
 			effectRate = mEffectRate;
+			if (!isCreateBack && effectRate != 0.0f && (!isBackDraw || mBackBitmap == null)) {
+				// 診断用: 効果の最中なのに、旧ページの背景を出さずに描こうとしている
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "効果中に背景なしで描画. drawRate=" + effectRate + " isBackDraw=" + isBackDraw + " backBmp=" + (mBackBitmap != null) + " thread=" + Thread.currentThread().getName());
+			}
+			if (!isCreateBack && effectRate != 0.0f && mDbgEffectZeroAt != 0) {
+				// 診断用: 効果の割合が0になったあとに、途中の割合で描こうとしている
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "効果終了後に途中の描画. drawRate=" + effectRate + " 終了から" + (SystemClock.uptimeMillis() - mDbgEffectZeroAt) + "ms thread=" + Thread.currentThread().getName());
+			}
 			zoomMode = mZoomMode;
 			pseLand = mPseLand;
 			pinchsel = mPinchSel;
@@ -1525,7 +1563,10 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 	}
 
 	// エフェクト処理
+	private volatile long mDbgEffectZeroAt = 0;	// 診断用: 効果の割合を0にした時刻(効果中は0)
+
 	public void setEffectRate(float rate) {
+		mDbgEffectZeroAt = (rate == 0.0f) ? SystemClock.uptimeMillis() : 0;
 		mEffectRate = rate;
 		updateNotify();
 	}
@@ -1810,6 +1851,9 @@ public class MyImageView extends SurfaceView implements SurfaceHolder.Callback, 
 		BackupPosition(true, drawLeft, drawTop);
 		mDrawLeft = drawLeft;
 		mDrawTop = drawTop;
+		Logcat.w(Logcat.LOG_LEVEL_WARN, "表示位置の決定. resize=" + isResize + " disp=" + disp_x + "x" + disp_y
+				+ " view=" + view_x + "x" + view_y + " drawLeft=" + drawLeft + " drawTop=" + drawTop
+				+ " mgnTop=" + mMgnTop + " mgnBottom=" + mMgnBottom + " viewPoint=" + mViewPoint + " pos=" + mDisplayPosition + " pageBack=" + mIsPageBack);
 
  		// ページ送り位置の設定
  		setScrollPos();

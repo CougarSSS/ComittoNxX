@@ -7382,6 +7382,7 @@ public class ImageManager extends InputStream implements Runnable {
     		}
 		}
 
+		Logcat.w(logLevel, "拡大縮小の計算. page=" + page1 + " mode=" + mScrScaleMode + " disp=" + disp_x + "x" + disp_y + " src=" + src_cx + "x" + src_cy + " view=" + view_x + "x" + view_y + " scale=" + mScrScale + " noExpand=" + mScrNoExpand);
 		Logcat.v(logLevel, "Page=" + page1 + ", Half=" + half1 + ", 指定サイズP1 width=" + width[0] + ", height=" + height[0]);
 		Logcat.v(logLevel, "Page=" + page2 + ", Half=" + half2 + ", 指定サイズP2 width=" + width[1] + ", height=" + height[1]);
 
