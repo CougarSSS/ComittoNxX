@@ -1070,6 +1070,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 							// 前ページへ
 							prevPage();
 						}
+						break;
 					}
 					case KeyEvent.KEYCODE_MENU:
 						// 独自メニュー表示
@@ -2783,7 +2784,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 
 		Resources res = getResources();
 //		setOptionMenu(menu);
-		TabDialogFragment mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, true, this);
+		mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, true, this);
 
 		mMenuDialog.addSection(res.getString(R.string.operateSec));
 		if (mTextMgr.getMidashiSize() > 0) {
@@ -2845,12 +2846,12 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		}
 
 		ArrayList<RecordItem>list = RecordList.load(null, RecordList.TYPE_BOOKMARK, mServer, mLocalFileName, mTextName);
-		if (list == null && list.size() == 0) {
+		if (list == null || list.size() == 0) {
 			Toast.makeText(this, R.string.bmNotFound, Toast.LENGTH_SHORT).show();
 			return;
 		}
 			Resources res = getResources();
-		TabDialogFragment mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, false, this);
+		mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, false, this);
 
 		// ブックマーク選択
 		mMenuDialog.addSection(res.getString(R.string.selBookmarkMenu));
@@ -2888,7 +2889,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		}
 
 		Resources res = getResources();
-		TabDialogFragment mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, true, false, false, true, this);
+		mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, true, false, false, true, this);
 
 		int size = mTextMgr.getMidashiSize();
 		Logcat.d(logLevel, "size=" + size);
@@ -2971,7 +2972,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 		}
 
 		Resources res = getResources();
-		TabDialogFragment mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, false, true, this);
+		mMenuDialog = new TabDialogFragment(this, R.style.MyDialog, false, true, this);
 
 		// ブックマーク選択
 		mMenuDialog.addSection(res.getString(R.string.searchJumpTitle));
@@ -3271,7 +3272,7 @@ public class TextActivity extends AppCompatActivity implements GestureDetector.O
 					ed.putInt(DEF.KEY_TX_FONTRUBI, mRubiSizeOrg);
 					ed.putInt(DEF.KEY_TX_FONTINFO, mInfoSizeOrg);
 					ed.putInt(DEF.KEY_TX_SPACEW, mSpaceW);
-					ed.putInt(DEF.KEY_TX_SPACEW, mSpaceH);
+					ed.putInt(DEF.KEY_TX_SPACEH, mSpaceH);
 					ed.putInt(DEF.KEY_TX_MARGINW, mMarginWOrg);
 					ed.putInt(DEF.KEY_TX_MARGINH, mMarginHOrg);
 					ed.putInt(DEF.KEY_TX_ASCMODE, mAscMode);
