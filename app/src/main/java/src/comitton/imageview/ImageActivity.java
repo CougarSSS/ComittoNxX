@@ -2433,13 +2433,12 @@ public class ImageActivity extends AppCompatActivity implements  GestureDetector
 		mBitmapLoading = true;
 
 		if (mEffectRate != 0.0f) {
-			// 診断用: ページめくり効果の最中に読み込みを開始すると、旧ページ用の背景が次のページで撮り直される
-			StackTraceElement[] st = Thread.currentThread().getStackTrace();
-			StringBuilder sb = new StringBuilder();
-			for (int i = 3; i < Math.min(st.length, 7); i++) {
-				sb.append(st[i].getMethodName()).append(":").append(st[i].getLineNumber()).append(" ");
-			}
-			Logcat.w(Logcat.LOG_LEVEL_WARN, "効果中にページ読み込みを開始. mEffectRate=" + mEffectRate + " page=" + mCurrentPage + " caller=" + sb);
+			// めくり効果の途中で次のめくりが来たら、今の効果を最後まで飛ばす.
+			// 途中のコマのまま背景を撮ると、その途中の画面で止まって見えるため.
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "効果中のめくり: 効果を終わらせて次へ. mEffectRate=" + mEffectRate + " page=" + mCurrentPage);
+			mEffectGen++;	// 残っている効果のタイマーを無効にする
+			mEffectRate = 0.0f;
+			mImageView.setEffectRate(0.0f);
 		}
 
 		// ピンチズームの更新
