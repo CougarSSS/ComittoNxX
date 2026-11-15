@@ -1058,6 +1058,9 @@ public class DEF {
 	// 書庫管理タブ向けの既読位置更新(ReadPositionSyncClient.pullAllForHost)の結果
 	public static final int HMSG_LIBRARY_READPOSITION_PULL_RESULT = 40;
 
+	public static final String KEY_CORNERTOUCHLIMITENABLE = "CornerTouchLimitEnable";
+	public static final String KEY_CORNERTOUCHHLIMIT = "CornerTouchHLimit";
+
 	public static final String KEY_FLOATINGICONSIZE = "FloatingIconSize";
 	public static final String KEY_FLOATINGICONDIRECTIONMODE = "FloatingIconDirectionMode";
 	public static final String KEY_FLOATINGICONHORIZENTIAL = "FloatingIconHoraizential";
@@ -1066,6 +1069,12 @@ public class DEF {
 	public static final String KEY_FLOATINGICONENABLE = "FloatingIconEnable";
 
 	public static final String KEY_FLOATINGICONBARGRIP = "FloatingIconBarGrip";
+
+	public static final String KEY_FLOATINGICONWRAP = "FloatingIconWrap";
+	public static final String KEY_FLOATINGICONWRAPDIRECTION = "FloatingIconWrapDirection";
+
+	public static final String KEY_SETARCHIVEPASSWORD = "SetArchivePassword";
+	public static final String KEY_SAVEARCHIVEPASSWORD = "SaveArchivePassword";
 
 	// プロファイル設定
 	public static final String KEY_PROFILE_WORD_01 = "Profile1";
@@ -1833,6 +1842,7 @@ public class DEF {
 	public static final int DEFAULT_FLOATINGICONVIRTICAL = 50;
 	public static final int DEFAULT_FLOATINGICONTRANSPARENCY = 50;
 	public static final int DEFAULT_FLOATINGICONDIRECTIONMODE = 0;
+	public static final int DEFAULT_FLOATINGICONWRAPDIRECTION = 0;
 
 	public static final int DEFAULT_WEBVIEWSHARPEN = 0;
 	public static final int MAX_WEBVIEWSHARPEN = 32;
@@ -1917,6 +1927,9 @@ public class DEF {
 	public static final int MIN_TABSEEK = 16; // 12
 	public static final int MAX_TABSEEK = 44; // 60 (44+16)
 	public static final int DEFAULT_TABSEEK = 16; // 32 (16+16)
+
+	public static final int MAX_CORNERTOUCHHLIMIT = 50;
+	public static final int DEFAULT_CORNERTOUCHHLIMIT = 0;
 
 	// テキストビュワー設定
 	public static final String KEY_TX_INISCALE = "txIniScale";

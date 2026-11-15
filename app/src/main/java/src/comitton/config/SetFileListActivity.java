@@ -408,6 +408,8 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 				ed.putBoolean(DEF.KEY_MEMLIMITENABLE, false);
 				ed.putInt(DEF.KEY_MEMLIMIT, DEF.DEFAULT_MEMLIMIT);
 				ed.putBoolean(DEF.KEY_SEARCHSETTINGICON, false);
+				ed.putBoolean(DEF.KEY_SETARCHIVEPASSWORD, false);
+				ed.putBoolean(DEF.KEY_SAVEARCHIVEPASSWORD, false);
 				ed.apply();
 				// アクティビティを再起動
 				ListViewScrollUtils.restartActivityWithPosition(this, getListView());
@@ -1201,6 +1203,18 @@ public class SetFileListActivity extends PreferenceActivity implements OnSharedP
 	public static boolean getSearchSettingIcon(SharedPreferences sharedPreferences){
 		boolean flag;
 		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_SEARCHSETTINGICON, false);
+		return flag;
+	}
+
+	public static boolean getSetArchivePassword(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_SETARCHIVEPASSWORD, false);
+		return flag;
+	}
+
+	public static boolean getSaveArchivePassword(SharedPreferences sharedPreferences){
+		boolean flag;
+		flag =  DEF.getBoolean(sharedPreferences, DEF.KEY_SAVEARCHIVEPASSWORD, false);
 		return flag;
 	}
 
