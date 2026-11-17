@@ -727,51 +727,97 @@ public class ImageManager extends InputStream implements Runnable {
 		}
 	}
 	// SMBのストリームアクセス(7-Zip-JBinding-4Android専用)
+	// 読み込みやシークに失敗したら、ファイルを開き直して同じ位置からやり直す
+	// (切れた接続のままやり直しても失敗し続け、ぐるぐるが長く出るため)
 	public class SmbInStream implements IInStream {
-		private final SmbRandomAccessFile sraf;
-		private SmbInStream(SmbRandomAccessFile sraf) {
+		private static final int REOPEN_TRIES = 3;
+		private static final int REOPEN_WAIT_MILLIS = 500;
+		private final SmbFile smbFile;
+		private SmbRandomAccessFile sraf;
+		private long pos = 0;
+		private SmbInStream(SmbFile smbFile, SmbRandomAccessFile sraf) {
+			this.smbFile = smbFile;
 			this.sraf = sraf;
+		}
+		// 開き直して pos に戻す. だめなら最後の例外を投げる
+		private void reopen(IOException cause) throws IOException {
+			long start = System.currentTimeMillis();
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "SMB: 再接続します. pos=" + pos + ", error=" + cause);
+			try {
+				sraf.close();
+			} catch (Exception ignored) {
+			}
+			IOException last = cause;
+			for (int i = 1; i <= REOPEN_TRIES; i++) {
+				if (!mRunningFlag) {
+					break;
+				}
+				try {
+					if (i > 1) {
+						Thread.sleep(REOPEN_WAIT_MILLIS);
+					}
+					sraf = new SmbRandomAccessFile(smbFile, "r");
+					sraf.seek(pos);
+					Logcat.w(Logcat.LOG_LEVEL_WARN, "SMB: 再接続しました. tries=" + i + ", elapsed=" + (System.currentTimeMillis() - start) + "ms");
+					return;
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				} catch (IOException e) {
+					last = e;
+					Logcat.w(Logcat.LOG_LEVEL_WARN, "SMB: 再接続に失敗しました. tries=" + i + ", error=" + e);
+				}
+			}
+			Logcat.w(Logcat.LOG_LEVEL_WARN, "SMB: 再接続できませんでした. elapsed=" + (System.currentTimeMillis() - start) + "ms");
+			throw last;
 		}
 		@Override
 		public int read(byte[] data) throws SevenZipException {
 			try {
-				// SmbRandomAccessFileから読み込み
-		        int n = sraf.read(data);
-				if (n < 0) {
-					return 0; 
+				int n;
+				try {
+					n = sraf.read(data);
+				} catch (IOException e) {
+					reopen(e);
+					n = sraf.read(data);
 				}
+				if (n < 0) {
+					return 0;
+				}
+				pos += n;
 				return n;
 			}
 			catch (IOException e) {
-				throw new SevenZipException("SMBからの読み込みに失敗しました", e);
+				throw new SevenZipException("SMBからの読み込みに失敗しました: " + e, e);
 			}
 		}
 		@Override
 		public long seek(long offset, int origin) throws SevenZipException {
-			try {
-				long newPosition;
-				switch (origin) {
-					case SEEK_SET:
-						// 先頭から
-						newPosition = offset;
-						break;
-					case SEEK_CUR:
-						// 現在位置から
-						newPosition = sraf.getFilePointer() + offset;
-						break;
-					case SEEK_END:
-						// 末尾から
-						newPosition = sraf.length() + offset;
-						break;
-					default:
-						throw new SevenZipException("無効なseek originです");
-				}
-				sraf.seek(newPosition);
-				return newPosition;
+			long newPosition;
+			switch (origin) {
+				case SEEK_SET:
+					// 先頭から
+					newPosition = offset;
+					break;
+				case SEEK_CUR:
+					// 現在位置から
+					newPosition = pos + offset;
+					break;
+				case SEEK_END:
+					// 末尾から
+					try {
+						newPosition = smbFile.length() + offset;
+					} catch (IOException e) {
+						throw new SevenZipException("SMBでのシークに失敗しました: " + e, e);
+					}
+					break;
+				default:
+					throw new SevenZipException("無効なseek originです");
 			}
-			catch (IOException e) {
-				throw new SevenZipException("SMBでのシークに失敗しました", e);
-			}
+			// jcifs の seek は位置を覚えるだけで通信しない(失敗は次の read で起きる)
+			sraf.seek(newPosition);
+			pos = newPosition;
+			return newPosition;
 		}
 		public void close() throws IOException {
 			if (sraf != null) {
@@ -1408,6 +1454,10 @@ public class ImageManager extends InputStream implements Runnable {
 						// SMBの場合
 						CIFSContext mSmbContext = SingletonContext.getInstance()
 							.withCredentials(new NtlmPasswordAuthenticator(null, mUser, mPass));
+						// 待ち時間の設定が効いているかの確認用(SmbFileAccess で設定する前に作られると初期値のままになる)
+						Logcat.w(Logcat.LOG_LEVEL_WARN, "SMB: 待ち時間 conn=" + mSmbContext.getConfig().getConnTimeout()
+							+ " response=" + mSmbContext.getConfig().getResponseTimeout()
+							+ " so=" + mSmbContext.getConfig().getSoTimeout());
 						// SMBのストリームアクセス
 						SmbFile smbFile = new SmbFile(mFilePath, mSmbContext);
 						// 判定用に一瞬開く
@@ -1417,7 +1467,7 @@ public class ImageManager extends InputStream implements Runnable {
 							detectedFormat = ArchiveDetector.detect(b, n);
 						}
 						SmbRandomAccessFile srafMain = new SmbRandomAccessFile(smbFile, "r");
-						mainStream = new SmbInStream(srafMain);
+						mainStream = new SmbInStream(smbFile, srafMain);
 						break;
 					}
 					case DEF.ACCESS_TYPE_SAF: {

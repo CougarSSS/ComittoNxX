@@ -141,6 +141,14 @@ public class SmbFileAccess {
 		// JCIFSのログを出力しない
 		prop.setProperty("jcifs.util.loglevel", "0");
 
+		// 待ち時間(ミリ秒). 初期値(応答30秒・接続/ソケット35秒)だと、通信が途切れたときに
+		// 失敗と判断するまで長くかかり、ぐるぐるが出続ける.
+		// NAS(pve-samba)のディスクは省電力で止まらないため回り始めの待ちは不要だが、
+		// Tailscale の中継経由でも足りるよう応答待ちは15秒にしておく
+		prop.setProperty("jcifs.smb.client.connTimeout", "10000");
+		prop.setProperty("jcifs.smb.client.responseTimeout", "15000");
+		prop.setProperty("jcifs.smb.client.soTimeout", "20000");
+
 		//prop.setProperty("jcifs.smb.lmCompatibility", "3");
 		//prop.setProperty("jcifs.smb.client.useExtendedSecuruty", "true");
 		//prop.setProperty("jcifs.smb.useRawNTLM", "true");
