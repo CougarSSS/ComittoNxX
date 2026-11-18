@@ -9834,7 +9834,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 						String key = DEF.createUrl(fileUri, libUser, libPass);
 						libEd.putInt(key, match.page);
 						libEd.putInt(key + "#maxpage", match.maxpage);
-						libEd.putInt(key + "#date", (int) match.date);
+						// #dateは「ページ数を数えたときのファイルの更新日時」。サーバーの同期日時を書くと、
+						// 一覧の読み込みで本が変わったとみなされ、SMBで開き直してページ数を数え直してしまう。
+						libEd.putInt(key + "#date", (int) e.getDateModified());
 						libUpdated++;
 					}
 					libEd.apply();
@@ -9867,7 +9869,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 									String key = DEF.createUrl(DEF.relativePath(mActivity, mURI, mPath, file.getName()), user, pass);
 									ed.putInt(key, position.page);
 									ed.putInt(key + "#maxpage", position.maxpage);
-									ed.putInt(key + "#date", (int) position.date);
+									// #dateにはサーバーの同期日時ではなく、ファイルの更新日時を書く
+									// (違う値だと、一覧の読み込みでこの本をSMBで開き直してしまう)
+									ed.putInt(key + "#date", (int) (file.getDate() / 1000));
 									if (file.getType() == FileData.FILETYPE_EPUB) {
 										// TextActivity(旧EPUBビューア)はcontainer.xmlを連結したキーを使う。
 										// EPUBの総ページ数は端末ごとのフォント・余白設定で変わるため、
@@ -9883,7 +9887,7 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 											if (convertedPage < 0) convertedPage = 0;
 											if (convertedPage > localMaxpage) convertedPage = localMaxpage;
 											ed.putInt(textKey, convertedPage);
-											ed.putInt(textKey + "#date", (int) position.date);
+											ed.putInt(textKey + "#date", (int) (file.getDate() / 1000));
 										}
 									}
 									updated++;
