@@ -7328,8 +7328,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private void showLibraryOptionsDialog() {
 		Resources res = getResources();
 		final ArrayList<String> itemList = new ArrayList<String>();
+		// 書庫の一覧と既読位置は続けて取り直す(一覧を取り直した後に既読位置を取る。HMSG_LIBRARYSYNC_RESULT 参照)
 		itemList.add(res.getString(R.string.libraryMenuPull));
-		itemList.add(res.getString(R.string.libraryMenuReadPositionSync));
 		itemList.add(res.getString(R.string.libraryMenuSearch));
 		if (mLibraryFilterText != null && !mLibraryFilterText.isEmpty()) {
 			itemList.add(res.getString(R.string.libraryMenuClearFilter));
@@ -7343,9 +7343,6 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: オプション選択=" + selected);
 				if (selected.equals(res.getString(R.string.libraryMenuPull))) {
 					pullLibraryFromServer();
-				}
-				else if (selected.equals(res.getString(R.string.libraryMenuReadPositionSync))) {
-					updateLibraryReadPositionFromServer();
 				}
 				else if (selected.equals(res.getString(R.string.libraryMenuSearch))) {
 					showLibrarySearchDialog();
@@ -7401,9 +7398,12 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	// 書庫管理タブの巻一覧(既読状況表示・色分け)に反映する。登録済みSMBサーバーのホスト単位で
 	// 問い合わせる(通常のファイル一覧の「同期」ボタンと同じAPI、既存のReadPositionSyncClientを再利用)。
 	// 結果はHMSG_LIBRARY_READPOSITION_PULL_RESULTで受信する。
-	private void updateLibraryReadPositionFromServer() {
+	// quiet: 既読位置の同期が使えないとき、知らせずに何もしない(書庫の一覧の更新に続けて呼ぶとき)
+	private void updateLibraryReadPositionFromServer(boolean quiet) {
 		if (!ReadPositionSyncClient.isConfigured(mSharedPreferences)) {
-			Toast.makeText(mActivity, R.string.readPositionSyncUnavailable, Toast.LENGTH_SHORT).show();
+			if (!quiet) {
+				Toast.makeText(mActivity, R.string.readPositionSyncUnavailable, Toast.LENGTH_SHORT).show();
+			}
 			return;
 		}
 		ServerSelect servers = new ServerSelect(mSharedPreferences, this);
@@ -7418,7 +7418,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			}
 		}
 		if (hosts.isEmpty()) {
-			Toast.makeText(mActivity, R.string.readPositionSyncUnavailable, Toast.LENGTH_SHORT).show();
+			if (!quiet) {
+				Toast.makeText(mActivity, R.string.readPositionSyncUnavailable, Toast.LENGTH_SHORT).show();
+			}
 			return;
 		}
 		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 既読位置の更新を開始します. ホスト数=" + hosts.size());
@@ -9799,6 +9801,8 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					// 更新後は最新順の先頭が見えるよう、スクロール位置を明示的に先頭へ戻す
 					mListScreenView.mLibraryListArea.setTopIndex(0, 0);
 				}
+				// 続けて既読位置も取り直す(既読位置は置き換えた後の一覧の巻に当てはめるため、この後で取る)
+				updateLibraryReadPositionFromServer(true);
 				return true;
 			}
 			case DEF.HMSG_LIBRARY_READPOSITION_PULL_RESULT: {
