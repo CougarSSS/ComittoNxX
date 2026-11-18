@@ -326,8 +326,10 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		short[] listtype = new short[listnum + 1];
 		int index = 1;
 		listtype[0] = RecordList.TYPE_FILELIST;
-		// 表示する場合(listflag[i]のiはそのままRecordList.TYPE_*の値と対応する)
-		for (int i = 0 ; i < listflag.length ; i ++) {
+		// 並びは本家と同じ: ディレクトリ・サーバー・ブックマーク・検索・書庫管理・履歴・メニュー。
+		// 表示するタブだけを、1つ入れるごとに index を進めて詰める(listnum と必ず一致させる)。
+		// listflag[i] の i は、そのまま RecordList.TYPE_* の値と対応する。
+		for (int i = 0 ; i <= 2 ; i ++) {
 			if (listflag[i]) {
 				listtype[index] = (short) i;
 				index++;
@@ -340,6 +342,12 @@ public class SetRecorderActivity extends PreferenceActivity implements OnSharedP
 		if (showLibrary && FileSelectActivity.getLibrarySyncSet()) {
 			listtype[index] = RecordList.TYPE_LIBRARY;
 			index++;
+		}
+		for (int i = 3 ; i <= 4 ; i ++) {
+			if (listflag[i]) {
+				listtype[index] = (short) i;
+				index++;
+			}
 		}
 		return listtype;
 	}
