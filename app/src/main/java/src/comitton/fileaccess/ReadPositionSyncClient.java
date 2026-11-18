@@ -124,6 +124,7 @@ public class ReadPositionSyncClient {
             public void run() {
                 int logLevel = Logcat.LOG_LEVEL_WARN;
                 HttpURLConnection conn = null;
+                boolean sent = false;
                 try {
                     String url = baseUrl(sp) + "?host=" + URLEncoder.encode(host, "UTF-8");
                     conn = (HttpURLConnection) new URL(url).openConnection();
@@ -155,6 +156,7 @@ public class ReadPositionSyncClient {
 
                     Message msg = handler.obtainMessage(what, list);
                     handler.sendMessage(msg);
+                    sent = true;
                 }
                 catch (Exception e) {
                     Logcat.e(logLevel, "ReadPositionSync pullAllForHost error", e);
@@ -162,6 +164,11 @@ public class ReadPositionSyncClient {
                 finally {
                     if (conn != null) {
                         conn.disconnect();
+                    }
+                    if (!sent) {
+                        // 取得できなかったことも知らせる(obj が null)。複数のホストに問い合わせる側が、
+                        // すべての返事がそろったことを数えられるようにするため。
+                        handler.sendMessage(handler.obtainMessage(what, null));
                     }
                 }
             }

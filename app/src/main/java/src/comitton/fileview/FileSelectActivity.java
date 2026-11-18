@@ -511,6 +511,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	private static boolean mEverythingBookmarkSyncSet;
 	private static boolean mBookmarkSyncSet;
 	private static boolean mReadPositionSyncSet;
+	// 書庫管理の既読位置の取り込み: 返事を待っているホストの数と、ここまでの合計(通知を1回にまとめるため)
+	private int mLibraryReadPosPending = 0;
+	private int mLibraryReadPosUpdated = 0;
+	private int mLibraryReadPosFailed = 0;
 	private static boolean mHistorySyncSet;
 	private static boolean mLibrarySyncSet;
 	private static boolean mEverythingSet;
@@ -7428,6 +7432,9 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 			return;
 		}
 		Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 既読位置の更新を開始します. ホスト数=" + hosts.size());
+		mLibraryReadPosPending = hosts.size();
+		mLibraryReadPosUpdated = 0;
+		mLibraryReadPosFailed = 0;
 		for (String host : hosts) {
 			ReadPositionSyncClient.pullAllForHost(mSharedPreferences, host, mHandler, DEF.HMSG_LIBRARY_READPOSITION_PULL_RESULT);
 		}
@@ -9849,10 +9856,22 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 					}
 					libEd.apply();
 				}
-				if (libUpdated > 0 && mListScreenView.getListType() == RecordList.TYPE_LIBRARY) {
+				// 返事はホストごとに届くので、すべてそろってから一覧の更新と通知を1回だけ行う
+				if (libPositions == null) {
+					mLibraryReadPosFailed++;
+				}
+				mLibraryReadPosUpdated += libUpdated;
+				if (mLibraryReadPosPending > 0) {
+					mLibraryReadPosPending--;
+				}
+				if (mLibraryReadPosPending > 0) {
+					return true;
+				}
+				Logcat.w(Logcat.LOG_LEVEL_WARN, "書庫管理: 既読位置の更新が終わりました. 更新=" + mLibraryReadPosUpdated + ", 取得できなかったホスト=" + mLibraryReadPosFailed);
+				if (mLibraryReadPosUpdated > 0 && mListScreenView.getListType() == RecordList.TYPE_LIBRARY) {
 					refreshLibraryList();
 				}
-				Toast.makeText(mActivity, getResources().getString(R.string.readPositionSyncDone, libUpdated), Toast.LENGTH_SHORT).show();
+				Toast.makeText(mActivity, getResources().getString(R.string.readPositionSyncDone, mLibraryReadPosUpdated), Toast.LENGTH_SHORT).show();
 				return true;
 			}
 			case DEF.HMSG_READPOSITION_PULL_RESULT: {
@@ -9860,6 +9879,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 				// ローカルキャッシュ(既読/未読表示に使われるSharedPreferences)を上書きする。
 				@SuppressWarnings("unchecked")
 				ArrayList<ReadPositionSyncClient.Position> positions = (ArrayList<ReadPositionSyncClient.Position>) msg.obj;
+				if (positions == null) {
+					// サーバーから取得できなかった(これまでどおり何も知らせない)
+					return true;
+				}
 				int updated = 0;
 				if (positions != null && !positions.isEmpty()) {
 					ArrayList<FileData> files = mFileList.getFileList();
