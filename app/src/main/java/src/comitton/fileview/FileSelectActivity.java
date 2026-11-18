@@ -7400,6 +7400,10 @@ public class FileSelectActivity extends AppCompatActivity implements OnTouchList
 	// 結果はHMSG_LIBRARY_READPOSITION_PULL_RESULTで受信する。
 	// quiet: 既読位置の同期が使えないとき、知らせずに何もしない(書庫の一覧の更新に続けて呼ぶとき)
 	private void updateLibraryReadPositionFromServer(boolean quiet) {
+		if (quiet && !mReadPositionSyncSet) {
+			// 書庫の一覧の更新に続けて呼ぶときは、既読位置の同期をオフにしている端末では取り込まない
+			return;
+		}
 		if (!ReadPositionSyncClient.isConfigured(mSharedPreferences)) {
 			if (!quiet) {
 				Toast.makeText(mActivity, R.string.readPositionSyncUnavailable, Toast.LENGTH_SHORT).show();
